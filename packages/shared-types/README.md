@@ -24,6 +24,11 @@ The types describe the public boundary of every other auditable Asylia
 package, so they share that licensing posture. MIT matches the rest of the
 crypto tooling ecosystem.
 
+## Public distribution
+
+This package is part of the public `Asylia/bitcoin-toolkit` export. Changes
+merged into the private monorepo are synchronized there for audit and review.
+
 ## Planned scope
 
 Borrowed from the existing Asylia reference codebases (see the root README
