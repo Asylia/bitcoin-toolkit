@@ -1,0 +1,34 @@
+{
+  "name": "@asylia/bitcoin-toolkit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Auditable Bitcoin TypeScript packages used by the Asylia self-custody wallet.",
+  "license": "MIT",
+  "packageManager": "yarn@4.9.2",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "type-check": "turbo run type-check",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "test:coverage": "turbo run test:coverage",
+    "clean": "turbo run clean && rimraf node_modules .turbo .yarn/cache .yarn/install-state.gz"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@vitest/coverage-v8": "^4.1.5",
+    "eslint": "^10.2.1",
+    "globals": "^17.5.0",
+    "rimraf": "^6.1.3",
+    "turbo": "^2.9.6",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.0",
+    "vitest": "^4.1.5"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

@@ -1,0 +1,17 @@
+node_modules
+.pnp.*
+.yarn/cache
+.yarn/install-state.gz
+.yarn/build-state.yml
+.yarn/unplugged
+.yarn/sdks
+.yarn/versions
+dist
+.turbo
+coverage
+*.tsbuildinfo
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
