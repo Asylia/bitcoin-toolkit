@@ -30,7 +30,7 @@ import {
 // 1. Bootstrap (idempotent — safe to call from every screen).
 await initTrezor({
   appName: 'Asylia Wallet',
-  appUrl: 'https://asylia.io',
+  appUrl: 'https://wallet.asylia.io',
   email: 'support@asylia.io',
 })
 
