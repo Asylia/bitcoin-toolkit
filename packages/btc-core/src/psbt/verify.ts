@@ -35,7 +35,7 @@
  */
 import { Buffer } from 'buffer';
 import * as ecc from '@bitcoinerlab/secp256k1';
-import { createHash } from 'crypto';
+import { sha256 } from '@noble/hashes/sha2.js';
 
 import { reverseTxidHex } from './build';
 import { inspectPsbtV2, type InspectedPsbt } from './inspect';
@@ -285,11 +285,7 @@ function looksLikeDerSignature(bytes: Uint8Array): boolean {
 }
 
 function doubleSha256(data: Buffer): Uint8Array {
-  return new Uint8Array(
-    createHash('sha256')
-      .update(createHash('sha256').update(data).digest())
-      .digest(),
-  );
+  return sha256(sha256(data));
 }
 
 /**

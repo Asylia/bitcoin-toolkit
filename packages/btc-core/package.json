@@ -59,6 +59,7 @@
   "dependencies": {
     "@bitcoinerlab/secp256k1": "^1.2.0",
     "@caravan/psbt": "^2.1.0",
+    "@noble/hashes": "^2.2.0",
     "bip32": "^5.0.1",
     "bitcoinjs-lib": "^7.0.1"
   }
