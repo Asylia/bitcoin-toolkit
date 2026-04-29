@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   maxSpendableSats,
   selectCoinsLargestFirst,
+  selectCoinsLargestFirstFixedFee,
   type Utxo,
 } from '../index';
 
@@ -79,6 +80,42 @@ describe('maxSpendableSats', () => {
         feeRateSatsPerVByte: 1,
       }),
     ).toMatchObject({ ok: true, feeSats: 253, changeSats: 0 });
+  });
+});
+
+describe('selectCoinsLargestFirstFixedFee', () => {
+  it('returns explicit change with a caller supplied fee', () => {
+    const result = selectCoinsLargestFirstFixedFee({
+      utxos: [utxo('88', 0, 120_000), utxo('99', 1, 30_000)],
+      targetSats: 100_000,
+      feeSats: 1_000,
+      fixedVbytes: 76,
+      changeOutputVbytes: 43,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      feeSats: 1_000,
+      changeSats: 19_000,
+      vbytes: 186,
+    });
+  });
+
+  it('rejects dust change instead of changing the explicit fee', () => {
+    const result = selectCoinsLargestFirstFixedFee({
+      utxos: [utxo('aa', 0, 10_000)],
+      targetSats: 9_000,
+      feeSats: 700,
+      fixedVbytes: 76,
+      changeOutputVbytes: 43,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'DUST_CHANGE',
+      available: 10_000,
+      required: 10_246,
+    });
   });
 });
 

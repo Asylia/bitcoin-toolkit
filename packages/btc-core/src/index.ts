@@ -162,6 +162,7 @@ export {
 } from './psbt/verify';
 export {
   selectCoinsLargestFirst,
+  selectCoinsLargestFirstFixedFee,
   maxSpendableSats,
   DEFAULT_DUST_THRESHOLD_SATS,
   DEFAULT_FIXED_VBYTES,
@@ -169,6 +170,8 @@ export {
   DEFAULT_CHANGE_OUTPUT_VBYTES,
   type CoinSelectInput,
   type CoinSelectResult,
+  type FixedFeeCoinSelectInput,
+  type FixedFeeCoinSelectResult,
   type MaxSpendableInput,
 } from './psbt/coin-select';
 export type {

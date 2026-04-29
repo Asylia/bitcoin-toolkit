@@ -239,6 +239,141 @@ export function selectCoinsLargestFirst(
   };
 }
 
+/** Inputs accepted by {@link selectCoinsLargestFirstFixedFee}. */
+export type FixedFeeCoinSelectInput = {
+  /** UTXOs available to spend. Order is irrelevant — re-sorted internally. */
+  utxos: readonly Utxo[];
+  /** Total value the recipient outputs need (sum of recipient amounts). */
+  targetSats: number;
+  /** Exact network fee budget selected by the operator. */
+  feeSats: number;
+  /** Per-input vbyte estimate; defaults to {@link DEFAULT_PER_INPUT_VBYTES}. */
+  perInputVbytes?: number;
+  /**
+   * Fixed transaction overhead in vbytes (header + outputs).
+   * Defaults to {@link DEFAULT_FIXED_VBYTES}; callers with P2WSH
+   * change should pass an adjusted value.
+   */
+  fixedVbytes?: number;
+  /** Dust threshold in satoshis; defaults to {@link DEFAULT_DUST_THRESHOLD_SATS}. */
+  dustThresholdSats?: number;
+  /**
+   * vbytes a single change output contributes to the transaction.
+   * Used only for the returned topology estimate.
+   */
+  changeOutputVbytes?: number;
+};
+
+/** Possible outcomes from {@link selectCoinsLargestFirstFixedFee}. */
+export type FixedFeeCoinSelectResult =
+  | {
+      ok: true;
+      selected: readonly Utxo[];
+      feeSats: number;
+      changeSats: number;
+      vbytes: number;
+    }
+  | {
+      ok: false;
+      reason: 'EMPTY_UTXOS' | 'INSUFFICIENT_FUNDS' | 'DUST_CHANGE';
+      available: number;
+      required: number;
+    };
+
+/**
+ * Largest-first selection when the caller supplies an exact network
+ * fee budget instead of a sat/vB rate.
+ *
+ * Unlike the rate-based selector, a sub-dust positive remainder cannot
+ * be silently folded into the fee without changing the operator's
+ * explicit fee target. In that case the function returns `DUST_CHANGE`
+ * and lets the UI ask for a different amount or fee.
+ */
+export function selectCoinsLargestFirstFixedFee(
+  input: FixedFeeCoinSelectInput,
+): FixedFeeCoinSelectResult {
+  const {
+    utxos,
+    targetSats,
+    feeSats,
+    perInputVbytes = DEFAULT_PER_INPUT_VBYTES,
+    fixedVbytes = DEFAULT_FIXED_VBYTES,
+    dustThresholdSats = DEFAULT_DUST_THRESHOLD_SATS,
+    changeOutputVbytes = DEFAULT_CHANGE_OUTPUT_VBYTES,
+  } = input;
+
+  if (utxos.length === 0) {
+    return { ok: false, reason: 'EMPTY_UTXOS', available: 0, required: targetSats };
+  }
+  if (targetSats <= 0 || feeSats <= 0) {
+    return {
+      ok: false,
+      reason: 'INSUFFICIENT_FUNDS',
+      available: 0,
+      required: targetSats + feeSats,
+    };
+  }
+
+  const sorted = utxos.slice().sort((a, b) => {
+    if (b.valueSats !== a.valueSats) return b.valueSats - a.valueSats;
+    if (a.txid === b.txid) return a.vout - b.vout;
+    return a.txid < b.txid ? -1 : 1;
+  });
+
+  const selected: Utxo[] = [];
+  let selectedSum = 0;
+  let dustAvailable = 0;
+
+  for (const utxo of sorted) {
+    selected.push(utxo);
+    selectedSum += utxo.valueSats;
+    const changeSats = selectedSum - targetSats - feeSats;
+    if (changeSats < 0) continue;
+
+    const withChangeVbytes = fixedVbytes + selected.length * perInputVbytes;
+    const noChangeVbytes = Math.max(
+      withChangeVbytes - changeOutputVbytes,
+      fixedVbytes - changeOutputVbytes,
+    );
+
+    if (changeSats === 0) {
+      return {
+        ok: true,
+        selected,
+        feeSats,
+        changeSats: 0,
+        vbytes: noChangeVbytes,
+      };
+    }
+    if (changeSats >= dustThresholdSats) {
+      return {
+        ok: true,
+        selected,
+        feeSats,
+        changeSats,
+        vbytes: withChangeVbytes,
+      };
+    }
+    dustAvailable = selectedSum;
+  }
+
+  const available = sorted.reduce((sum, utxo) => sum + utxo.valueSats, 0);
+  if (available >= targetSats + feeSats) {
+    return {
+      ok: false,
+      reason: 'DUST_CHANGE',
+      available: dustAvailable || available,
+      required: targetSats + feeSats + dustThresholdSats,
+    };
+  }
+  return {
+    ok: false,
+    reason: 'INSUFFICIENT_FUNDS',
+    available,
+    required: targetSats + feeSats,
+  };
+}
+
 /** Inputs accepted by {@link maxSpendableSats}. */
 export type MaxSpendableInput = {
   /** UTXOs available to spend. Order is irrelevant — re-sorted internally. */
