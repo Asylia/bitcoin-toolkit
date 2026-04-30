@@ -152,6 +152,57 @@ describe('signWshSortedMultiPsbt', () => {
     expect(mocks.openLedgerTransport).not.toHaveBeenCalled();
   });
 
+  it('short-circuits policy and transport failures before device signing', async () => {
+    mocks.buildLedgerWalletPolicyForDevice.mockReturnValueOnce({
+      ok: false,
+      error: { code: 'descriptor_unavailable', message: 'bad policy' },
+    });
+    await expect(signWshSortedMultiPsbt(input())).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'descriptor_unavailable' },
+    });
+    expect(mocks.openLedgerTransport).not.toHaveBeenCalled();
+
+    mocks.buildLedgerWalletPolicyForDevice.mockReturnValue({
+      ok: true,
+      data: {
+        policy: { name: 'policy' },
+        policyId: '11'.repeat(32),
+      },
+    });
+    mocks.openLedgerTransport.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'transport_unavailable', message: 'no device' },
+    });
+    await expect(signWshSortedMultiPsbt(input())).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'transport_unavailable' },
+    });
+    expect(mocks.appClient.signPsbt).not.toHaveBeenCalled();
+  });
+
+  it('closes transport when app metadata or fingerprint reads fail', async () => {
+    mocks.readAppMetadata.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'wrong_app', message: 'open Bitcoin' },
+    });
+    await expect(signWshSortedMultiPsbt(input())).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'wrong_app' },
+    });
+    expect(mocks.closeLedgerTransport).toHaveBeenCalledWith(mocks.transport);
+
+    mocks.readFingerprint.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'unknown', message: 'fingerprint failed' },
+    });
+    await expect(signWshSortedMultiPsbt(input())).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'unknown' },
+    });
+    expect(mocks.closeLedgerTransport).toHaveBeenCalledTimes(2);
+  });
+
   it('closes the transport when the connected Ledger fingerprint is wrong', async () => {
     mocks.readFingerprint.mockResolvedValue({ ok: true, data: OTHER_FINGERPRINT });
 
@@ -197,6 +248,58 @@ describe('signWshSortedMultiPsbt', () => {
       ok: false,
       error: { code: 'unknown' },
     });
+  });
+
+  it('handles device signing rejection, empty approvals, and merge failures', async () => {
+    mocks.appClient.signPsbt.mockRejectedValueOnce(new Error('user rejected on device'));
+    await expect(signWshSortedMultiPsbt(input())).resolves.toMatchObject({
+      ok: false,
+    });
+
+    mocks.appClient.signPsbt.mockResolvedValueOnce([]);
+    await expect(signWshSortedMultiPsbt(input())).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'unknown' },
+    });
+
+    mocks.addPartialSignaturesToPsbt.mockImplementationOnce(() => {
+      throw new Error('merge failed');
+    });
+    await expect(signWshSortedMultiPsbt(input())).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'unknown' },
+    });
+  });
+
+  it('signs multiple inputs and accepts omitted policy ids and normalised fingerprints', async () => {
+    mocks.inspectPsbtV2.mockReturnValue({
+      inputs: [
+        { bip32Derivation: [{ masterFingerprint: FINGERPRINT_BYTES, pubkey: PUBKEY }] },
+        { bip32Derivation: [{ masterFingerprint: FINGERPRINT_BYTES, pubkey: PUBKEY }] },
+      ],
+    });
+    mocks.appClient.signPsbt.mockResolvedValueOnce([
+      [0, { pubkey: PUBKEY, signature: SIGNATURE_WITH_SIGHASH }],
+      [1, { pubkey: PUBKEY, signature: SIGNATURE_WITH_SIGHASH }],
+    ]);
+
+    const result = await signWshSortedMultiPsbt({
+      ...input(),
+      signerFingerprint: '  DEADBEEF  ',
+      policyId: undefined,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        signedInputCount: 2,
+        requestedFingerprint: FINGERPRINT,
+      },
+    });
+    expect(mocks.addPartialSignaturesToPsbt).toHaveBeenCalledWith('unsigned-psbt', [
+      { inputIndex: 0, pubkey: PUBKEY, signature: DER_SIGNATURE },
+      { inputIndex: 1, pubkey: PUBKEY, signature: DER_SIGNATURE },
+    ]);
   });
 
   it('merges verified Ledger signatures and returns the signing identity', async () => {

@@ -12,6 +12,7 @@ import {
 import {
   isoFromMempoolSpace,
   krakenPairListFor,
+  mapBlockchainDotComTicker,
   mapCoinbaseExchangeRates,
   mapCoinGeckoSimplePrice,
   mapKrakenTicker,
@@ -207,5 +208,69 @@ describe('chain-data mappers', () => {
       USD: 64_000,
       CHF: 59000.25,
     });
+  });
+
+  it('covers mapper edge cases that protect provider failover decisions', () => {
+    expect(mapEsploraAddress({
+      address: 'bc1qpending',
+      chain_stats: {
+        funded_txo_sum: 10_000,
+        spent_txo_sum: 4_000,
+        tx_count: 1,
+      },
+      mempool_stats: {
+        funded_txo_sum: 7_000,
+        spent_txo_sum: 1_000,
+        tx_count: 1,
+      },
+    })).toMatchObject({
+      balance_sats: 6_000,
+      pending_sats: 6_000,
+    });
+
+    expect(mapBlockcypherBalance({
+      address: 'bc1qaddr',
+      balance: 100_000,
+      unconfirmed_balance: 12_345,
+      total_received: 150_000,
+      n_tx: 4,
+      unconfirmed_n_tx: 1,
+    })).toMatchObject({
+      pending_sats: 12_345,
+    });
+
+    expect(mapBlockchainDotComTicker({
+      USD: { last: 64_000, '15m': 63_000 },
+      EUR: { '15m': 60_000 },
+      GBP: { last: 0, '15m': -1 },
+    }, ['usd', 'EUR', 'GBP'])).toEqual({
+      USD: 64_000,
+      EUR: 60_000,
+    });
+
+    expect(mapMempoolSpacePrices({
+      time: 1_775_000_000,
+      USD: 0,
+      EUR: -1,
+      CHF: 59_000,
+    }, ['USD', 'EUR'])).toEqual({});
+
+    expect(mapKrakenTicker({
+      result: {
+        UNKNOWN: { c: ['1', '1'] },
+        XXBTZUSD: { c: ['not-a-number', '1'] },
+        XXBTZEUR: {},
+      },
+    }, ['USD', 'EUR'])).toEqual({});
+  });
+
+  it('falls back to the current time when mempool price timestamps are invalid', () => {
+    const before = Date.now();
+    const iso = isoFromMempoolSpace({});
+    const after = Date.now();
+    const parsed = Date.parse(iso);
+
+    expect(parsed).toBeGreaterThanOrEqual(before);
+    expect(parsed).toBeLessThanOrEqual(after);
   });
 });

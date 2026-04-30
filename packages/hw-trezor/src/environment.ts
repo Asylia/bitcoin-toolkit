@@ -282,6 +282,10 @@ function readSuiteMarker(parsed: unknown): boolean | null {
 
 function detectWebUsb(): boolean {
   if (typeof navigator === 'undefined') return false;
+  if (detectPermissionsPolicyFeature('usb') === false) {
+    log.warn('webusb unavailable — Permissions-Policy blocks usb');
+    return false;
+  }
   // Reading `'usb' in navigator` is enough — even when the API is
   // permission-gated (corporate policies, insecure context) the
   // property exists. The SDK itself does the actual permission
@@ -290,6 +294,31 @@ function detectWebUsb(): boolean {
   // `unknown` so the `in` check compiles in strict mode without
   // dragging an experimental WebUSB type definition into this package.
   return 'usb' in (navigator as unknown as Record<string, unknown>);
+}
+
+type BrowserPermissionsPolicy = {
+  allowsFeature?: (feature: string) => boolean;
+};
+
+type BrowserDocumentWithPermissionsPolicy = {
+  permissionsPolicy?: BrowserPermissionsPolicy;
+  featurePolicy?: BrowserPermissionsPolicy;
+};
+
+function detectPermissionsPolicyFeature(feature: 'usb'): boolean | null {
+  if (typeof document === 'undefined') return null;
+  const browserDocument = document as unknown as BrowserDocumentWithPermissionsPolicy;
+  const policy = browserDocument.permissionsPolicy ?? browserDocument.featurePolicy;
+  if (typeof policy?.allowsFeature !== 'function') return null;
+  try {
+    return policy.allowsFeature(feature);
+  } catch (cause) {
+    log.warn('permissions policy probe failed', {
+      feature,
+      error: cause instanceof Error ? cause.message : String(cause),
+    });
+    return null;
+  }
 }
 
 function detectBrowserFamily(): TrezorBrowserFamily {

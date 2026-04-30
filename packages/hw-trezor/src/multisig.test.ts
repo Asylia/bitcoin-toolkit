@@ -23,6 +23,9 @@ describe('parseXpubToHDNode', () => {
 
   it('rejects malformed xpub values', () => {
     expect(() => parseXpubToHDNode('not-base58check')).toThrow('base58check');
+    expect(() => parseXpubToHDNode(bs58check.encode(new Uint8Array(77)))).toThrow(
+      'unexpected length',
+    );
   });
 });
 
@@ -64,6 +67,75 @@ describe('buildTrezorMultisigBlock', () => {
       [0, 5],
       [0, 5],
     ]);
+  });
+
+  it('places existing signatures in the matching cosigner slot by fingerprint and pubkey', () => {
+    const keys: DescriptorKey[] = [
+      { fingerprint: 'AABBCC01', derivationPath: "48'/0'/0'/2'", xpub: makeXpub(1) },
+      { fingerprint: 'AABBCC02', derivationPath: "48'/0'/0'/2'", xpub: makeXpub(2) },
+    ];
+    const firstPubkey = new Uint8Array([0x02, ...Array.from({ length: 32 }, (_, index) => index)]);
+    const secondPubkey = new Uint8Array([
+      0x03,
+      ...Array.from({ length: 32 }, (_, index) => index + 1),
+    ]);
+    const block = buildTrezorMultisigBlock({
+      cosignerNodes: buildTrezorCosignerNodes(keys),
+      requiredSignatures: 2,
+      chain: 1,
+      index: 7,
+      bip32Derivation: [
+        {
+          masterFingerprint: Uint8Array.from([0xaa, 0xbb, 0xcc, 0x01]),
+          pubkey: firstPubkey,
+          path: "m/48'/0'/0'/2'/1/7",
+        },
+        {
+          masterFingerprint: Uint8Array.from([0xaa, 0xbb, 0xcc, 0x02]),
+          pubkey: secondPubkey,
+          path: "m/48'/0'/0'/2'/1/7",
+        },
+      ],
+      existingPartialSigs: [
+        {
+          pubkey: secondPubkey,
+          signature: Uint8Array.from([0x30, 0x45, 0x01]),
+        },
+      ],
+    });
+
+    expect(block.signatures).toEqual(['', '3045']);
+    expect(block.pubkeys.map((entry) => entry.address_n)).toEqual([
+      [1, 7],
+      [1, 7],
+    ]);
+  });
+
+  it('leaves a signature slot empty when the partial signature pubkey does not match', () => {
+    const keys: DescriptorKey[] = [
+      { fingerprint: 'aabbcc01', derivationPath: "48'/0'/0'/2'", xpub: makeXpub(1) },
+    ];
+    const block = buildTrezorMultisigBlock({
+      cosignerNodes: buildTrezorCosignerNodes(keys),
+      requiredSignatures: 1,
+      chain: 0,
+      index: 0,
+      bip32Derivation: [
+        {
+          masterFingerprint: Uint8Array.from([0xaa, 0xbb, 0xcc, 0x01]),
+          pubkey: Uint8Array.from([0x02, ...Array.from({ length: 32 }, (_, index) => index)]),
+          path: "m/48'/0'/0'/2'/0/0",
+        },
+      ],
+      existingPartialSigs: [
+        {
+          pubkey: Uint8Array.from([0x03, ...Array.from({ length: 32 }, (_, index) => index)]),
+          signature: Uint8Array.from([0x30, 0x44, 0x01]),
+        },
+      ],
+    });
+
+    expect(block.signatures).toEqual(['']);
   });
 });
 

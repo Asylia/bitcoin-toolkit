@@ -131,10 +131,39 @@ function detectWebHid(): boolean {
   if (typeof window !== 'undefined' && window.isSecureContext === false) {
     return false;
   }
+  if (detectPermissionsPolicyFeature('hid') === false) {
+    log.warn('webhid unavailable — Permissions-Policy blocks hid');
+    return false;
+  }
   // Reading `'hid' in navigator` is enough — even when the API is
   // permission-gated (corporate policies) the property exists. The
   // SDK itself does the actual permission request later.
   return 'hid' in (navigator as unknown as Record<string, unknown>);
+}
+
+type BrowserPermissionsPolicy = {
+  allowsFeature?: (feature: string) => boolean;
+};
+
+type BrowserDocumentWithPermissionsPolicy = {
+  permissionsPolicy?: BrowserPermissionsPolicy;
+  featurePolicy?: BrowserPermissionsPolicy;
+};
+
+function detectPermissionsPolicyFeature(feature: 'hid'): boolean | null {
+  if (typeof document === 'undefined') return null;
+  const browserDocument = document as unknown as BrowserDocumentWithPermissionsPolicy;
+  const policy = browserDocument.permissionsPolicy ?? browserDocument.featurePolicy;
+  if (typeof policy?.allowsFeature !== 'function') return null;
+  try {
+    return policy.allowsFeature(feature);
+  } catch (cause) {
+    log.warn('permissions policy probe failed', {
+      feature,
+      error: cause instanceof Error ? cause.message : String(cause),
+    });
+    return null;
+  }
 }
 
 function detectBrowserFamily(): LedgerBrowserFamily {

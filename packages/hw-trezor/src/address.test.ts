@@ -78,6 +78,25 @@ describe('displayWshSortedMultiAddress', () => {
     expect(mocks.getAddress).not.toHaveBeenCalled();
   });
 
+  it('normalises cosigner and derivation parsing failures', async () => {
+    mocks.buildTrezorCosignerNodes.mockImplementationOnce(() => {
+      throw new Error('bad xpub');
+    });
+    await expect(displayWshSortedMultiAddress(input())).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'invalid_path' },
+    });
+    expect(mocks.getAddress).not.toHaveBeenCalled();
+
+    mocks.bip32PathToAddressN.mockImplementationOnce(() => {
+      throw new Error('bad path');
+    });
+    await expect(displayWshSortedMultiAddress(input())).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'invalid_path' },
+    });
+  });
+
   it('normalises Trezor SDK failures', async () => {
     mocks.getAddress.mockResolvedValue({
       success: false,
@@ -90,6 +109,14 @@ describe('displayWshSortedMultiAddress', () => {
     const result = await displayWshSortedMultiAddress(input());
 
     expect(result).toMatchObject({ ok: false, error: { code: 'cancelled' } });
+  });
+
+  it('normalises thrown Trezor SDK errors', async () => {
+    mocks.getAddress.mockRejectedValue(new Error('popup closed'));
+
+    await expect(displayWshSortedMultiAddress(input())).resolves.toMatchObject({
+      ok: false,
+    });
   });
 
   it('rejects address mismatches returned by the device', async () => {

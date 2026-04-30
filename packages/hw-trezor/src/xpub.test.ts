@@ -103,6 +103,100 @@ describe('exportTrezorRoot', () => {
     });
     expect(mocks.TrezorConnect.getPublicKey).not.toHaveBeenCalled();
   });
+
+  it('normalises feature and public-key failures', async () => {
+    const { exportTrezorRoot } = await import('./xpub');
+
+    mocks.TrezorConnect.getFeatures.mockResolvedValueOnce({
+      success: false,
+      payload: { code: 'Device_Disconnected', error: 'disconnected' },
+    });
+    await expect(exportTrezorRoot({
+      derivationPath: "m/48'/0'/0'/2'",
+      scriptType: 'p2wsh',
+    })).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'device_disconnected' },
+    });
+
+    mocks.TrezorConnect.getFeatures.mockRejectedValueOnce(new Error('transport down'));
+    await expect(exportTrezorRoot({
+      derivationPath: "m/48'/0'/0'/2'",
+      scriptType: 'p2wsh',
+    })).resolves.toMatchObject({ ok: false });
+
+    mocks.TrezorConnect.getPublicKey.mockResolvedValueOnce({
+      success: false,
+      payload: { code: 'Method_Cancel', error: 'cancelled' },
+    });
+    await expect(exportTrezorRoot({
+      derivationPath: "m/48'/0'/0'/2'",
+      scriptType: 'p2wsh',
+    })).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'cancelled' },
+    });
+  });
+
+  it('requires a parsable descriptor but accepts unknown models and missing segwit xpub', async () => {
+    const { exportTrezorRoot } = await import('./xpub');
+
+    mocks.TrezorConnect.getPublicKey.mockResolvedValueOnce({
+      success: true,
+      payload: {
+        xpub: makeXpub(1),
+        serializedPath: "m/48'/0'/0'/2'",
+        depth: 4,
+        childNum: 0x80000002,
+        fingerprint: 0xaabbccdd,
+        descriptor: 'wpkh(xpub-without-origin)#checksum',
+      },
+    });
+    await expect(exportTrezorRoot({
+      derivationPath: "m/48'/0'/0'/2'",
+      scriptType: 'p2wsh',
+    })).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'descriptor_unavailable' },
+    });
+
+    mocks.TrezorConnect.getFeatures.mockResolvedValueOnce({
+      success: true,
+      payload: {
+        internal_model: 'FUTURE',
+        major_version: 9,
+        minor_version: 1,
+        patch_version: 0,
+        label: '',
+        device_id: 'future-device',
+      },
+    });
+    mocks.TrezorConnect.getPublicKey.mockResolvedValueOnce({
+      success: true,
+      payload: {
+        xpub: makeXpub(2),
+        serializedPath: "m/48'/0'/0'/2'",
+        depth: 4,
+        childNum: 0x80000002,
+        fingerprint: 0xaabbccdd,
+        descriptor: `[ABCDEF12/48'/0'/0'/2']${makeXpub(2)}`,
+      },
+    });
+    await expect(exportTrezorRoot({
+      derivationPath: "m/48'/0'/0'/2'",
+      scriptType: 'p2wsh',
+    })).resolves.toMatchObject({
+      ok: true,
+      data: {
+        masterFingerprint: 'abcdef12',
+        device: {
+          model: 'Trezor',
+          label: 'Trezor',
+          firmware: '9.1.0',
+        },
+      },
+    });
+  });
 });
 
 function makeXpub(seed: number): string {

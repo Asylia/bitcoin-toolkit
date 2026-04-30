@@ -33,6 +33,26 @@ describe('Trezor error normalisation', () => {
     });
   });
 
+  it('infers failure codes from messages when the SDK omits a code', () => {
+    expect(fromTrezorFailure({ payload: { error: 'manifest is missing' } })).toMatchObject({
+      code: 'manifest_required',
+    });
+    expect(fromTrezorFailure({ payload: { error: 'iframe not initialized' } })).toMatchObject({
+      code: 'init_failed',
+    });
+    expect(fromTrezorFailure({ payload: { error: 'firmware too old' } })).toMatchObject({
+      code: 'firmware_too_old',
+    });
+  });
+
+  it('infers device-specific thrown errors from free-form messages', () => {
+    expect(fromUnknown('device disconnected')).toMatchObject({ code: 'device_disconnected' });
+    expect(fromUnknown('device not found')).toMatchObject({ code: 'device_not_found' });
+    expect(fromUnknown('device used in another session')).toMatchObject({
+      code: 'device_in_use',
+    });
+  });
+
   it('builds explicit typed adapter errors', () => {
     expect(asAdapterError('invalid_path', "m/48'/0'")).toMatchObject({
       code: 'invalid_path',

@@ -124,6 +124,37 @@ describe('displayWshSortedMultiAddress', () => {
     expect(mocks.closeLedgerTransport).toHaveBeenCalledWith(mocks.transport);
   });
 
+  it('closes transport when app metadata or fingerprint reads fail', async () => {
+    mocks.readAppMetadata.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'wrong_app', message: 'open Bitcoin' },
+    });
+    await expect(displayWshSortedMultiAddress(input())).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'wrong_app' },
+    });
+    expect(mocks.closeLedgerTransport).toHaveBeenCalledWith(mocks.transport);
+
+    mocks.readFingerprint.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'unknown', message: 'fingerprint failed' },
+    });
+    await expect(displayWshSortedMultiAddress(input())).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'unknown' },
+    });
+    expect(mocks.closeLedgerTransport).toHaveBeenCalledTimes(2);
+  });
+
+  it('maps getWalletAddress failures through Ledger error normalisation', async () => {
+    mocks.appClient.getWalletAddress.mockRejectedValue(new Error('device disconnected'));
+
+    const result = await displayWshSortedMultiAddress(input());
+
+    expect(result).toMatchObject({ ok: false });
+    expect(mocks.closeLedgerTransport).toHaveBeenCalledWith(mocks.transport);
+  });
+
   it('rejects device-derived address mismatches', async () => {
     mocks.appClient.getWalletAddress.mockResolvedValue('bc1qother');
 
@@ -137,7 +168,7 @@ describe('displayWshSortedMultiAddress', () => {
   });
 
   it('returns verified address metadata on success', async () => {
-    const result = await displayWshSortedMultiAddress(input());
+    const result = await displayWshSortedMultiAddress({ ...input(), policyId: undefined });
 
     expect(result).toEqual({
       ok: true,

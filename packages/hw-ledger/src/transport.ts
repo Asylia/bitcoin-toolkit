@@ -61,6 +61,8 @@ export type LedgerHidInfo = {
  * pulling that transitive dependency into the audit surface.
  */
 const LEDGER_USB_VENDOR_ID = 0x2c97;
+const WEBHID_PERMISSIONS_POLICY_CAUSE =
+  'Permissions-Policy blocks WebHID for this document';
 
 /**
  * Friendly product names per Ledger `productId`. The Ledger Bitcoin app
@@ -102,6 +104,12 @@ export async function findAuthorisedLedgerDevice(): Promise<HIDDevice | null> {
     );
     return ledger ?? null;
   } catch (cause) {
+    if (isWebHidPermissionsPolicyError(cause)) {
+      log.error('navigator.hid.getDevices blocked by Permissions-Policy', {
+        error: cause instanceof Error ? cause.message : String(cause),
+      });
+      return null;
+    }
     log.warn('navigator.hid.getDevices threw', {
       error: cause instanceof Error ? cause.message : String(cause),
     });
@@ -150,6 +158,18 @@ export async function openLedgerTransport(): Promise<
       return { ok: true, data: existing };
     }
   } catch (cause) {
+    if (isWebHidPermissionsPolicyError(cause)) {
+      log.error('webhid openConnected blocked by Permissions-Policy', {
+        error: cause instanceof Error ? cause.message : String(cause),
+      });
+      return {
+        ok: false,
+        error: asAdapterError(
+          'permission_denied',
+          WEBHID_PERMISSIONS_POLICY_CAUSE,
+        ),
+      };
+    }
     // `openConnected` tolerates no-device as a `null` return but can still
     // throw when the device is held by another tab. Fall through to the
     // request path instead of surfacing the error immediately — the
@@ -170,6 +190,15 @@ export async function openLedgerTransport(): Promise<
     log.error('webhid request() threw', {
       error: cause instanceof Error ? cause.message : String(cause),
     });
+    if (isWebHidPermissionsPolicyError(cause)) {
+      return {
+        ok: false,
+        error: asAdapterError(
+          'permission_denied',
+          WEBHID_PERMISSIONS_POLICY_CAUSE,
+        ),
+      };
+    }
     return { ok: false, error: fromLedgerError(cause, 'transport_unavailable') };
   }
 }
@@ -232,6 +261,12 @@ function describeDevice(device: HIDDevice | null): LedgerHidInfo {
     vendorId: device.vendorId ?? null,
     productId: device.productId ?? null,
   };
+}
+
+function isWebHidPermissionsPolicyError(cause: unknown): boolean {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  const lower = message.toLowerCase();
+  return lower.includes('permissions policy') && lower.includes('hid');
 }
 
 /** Visible for tests. Exposes the vendor id without leaking `@ledgerhq/devices`. */

@@ -65,6 +65,34 @@ describe('buildLedgerWalletPolicy', () => {
     });
   });
 
+  it('rejects invalid thresholds and malformed key material', () => {
+    const key = {
+      fingerprint: 'deadbeef',
+      derivationPath: "m/48'/0'/0'/2'",
+      xpub: makeXpub(3),
+    };
+
+    for (const requiredSignatures of [0, -1, 1.5, 2]) {
+      expect(buildLedgerWalletPolicy({ requiredSignatures, keys: [key] })).toMatchObject({
+        ok: false,
+        error: { code: 'descriptor_unavailable' },
+      });
+    }
+    expect(buildLedgerWalletPolicy({ requiredSignatures: 1, keys: [] })).toMatchObject({
+      ok: false,
+      error: { code: 'descriptor_unavailable' },
+    });
+    expect(
+      buildLedgerWalletPolicy({
+        requiredSignatures: 1,
+        keys: [{ ...key, xpub: 'not-an-xpub' }],
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: 'descriptor_unavailable' },
+    });
+  });
+
   it('keeps the policy id stable when the same cosigners arrive in another order', () => {
     const keys = [
       {

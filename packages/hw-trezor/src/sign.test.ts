@@ -106,6 +106,18 @@ describe('signWshSortedMultiPsbt', () => {
     expect(mocks.signTransaction).not.toHaveBeenCalled();
   });
 
+  it('rejects cosigner node build failures before calling Trezor Connect', async () => {
+    mocks.buildTrezorCosignerNodes.mockImplementationOnce(() => {
+      throw new Error('Cosigner xpub is not valid base58check');
+    });
+
+    await expect(signWshSortedMultiPsbt(input())).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'invalid_path' },
+    });
+    expect(mocks.signTransaction).not.toHaveBeenCalled();
+  });
+
   it('sends PSBT version, locktime, inputs and outputs to Trezor Connect', async () => {
     const result = await signWshSortedMultiPsbt(input());
 
@@ -134,6 +146,41 @@ describe('signWshSortedMultiPsbt', () => {
     });
   });
 
+  it('maps vault change outputs as PAYTOWITNESS with multisig metadata', async () => {
+    mocks.inspectPsbtV2.mockReturnValue({
+      ...inspectedPsbt(),
+      outputs: [
+        {
+          amountSats: 8_000,
+          scriptPubKey: Uint8Array.from([0, 32, 1]),
+          witnessScript: Uint8Array.from([1, 2, 3]),
+          bip32Derivation: [
+            {
+              masterFingerprint: FINGERPRINT_BYTES,
+              pubkey: PUBKEY,
+              path: "m/48'/0'/0'/2'/1/7",
+            },
+          ],
+        },
+      ],
+    });
+
+    await expect(signWshSortedMultiPsbt(input())).resolves.toMatchObject({ ok: true });
+
+    expect(mocks.signTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outputs: [
+          {
+            address_n: [...pathToAddressN("m/48'/0'/0'/2'"), 1, 7],
+            amount: 8_000,
+            script_type: 'PAYTOWITNESS',
+            multisig: { m: 2, pubkeys: [], signatures: [] },
+          },
+        ],
+      }),
+    );
+  });
+
   it('normalises Trezor failures and rejects signature count mismatches', async () => {
     mocks.signTransaction.mockResolvedValueOnce({
       success: false,
@@ -147,6 +194,19 @@ describe('signWshSortedMultiPsbt', () => {
     mocks.signTransaction.mockResolvedValueOnce({
       success: true,
       payload: { signatures: [] },
+    });
+    await expect(signWshSortedMultiPsbt(input())).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'unknown' },
+    });
+  });
+
+  it('normalises thrown signing and merge failures', async () => {
+    mocks.signTransaction.mockRejectedValueOnce(new Error('popup crashed'));
+    await expect(signWshSortedMultiPsbt(input())).resolves.toMatchObject({ ok: false });
+
+    mocks.addPartialSignaturesToPsbt.mockImplementationOnce(() => {
+      throw new Error('merge failed');
     });
     await expect(signWshSortedMultiPsbt(input())).resolves.toMatchObject({
       ok: false,
@@ -234,6 +294,44 @@ describe('signWshSortedMultiPsbt', () => {
     });
     expect(mocks.addPartialSignaturesToPsbt).toHaveBeenCalledWith('unsigned-psbt', [
       expect.objectContaining({ pubkey: OTHER_PUBKEY }),
+    ]);
+  });
+
+  it('merges signatures for multiple signable inputs', async () => {
+    mocks.inspectPsbtV2.mockReturnValue({
+      ...inspectedPsbt(),
+      inputs: [
+        inspectedPsbt().inputs[0],
+        {
+          ...inspectedPsbt().inputs[0],
+          txid: '22'.repeat(32),
+          vout: 0,
+          bip32Derivation: [
+            {
+              masterFingerprint: FINGERPRINT_BYTES,
+              pubkey: PUBKEY,
+              path: "m/48'/0'/0'/2'/0/6",
+            },
+          ],
+        },
+      ],
+    });
+    mocks.signTransaction.mockResolvedValueOnce({
+      success: true,
+      payload: {
+        signatures: ['30440220', '30450220'],
+      },
+    });
+
+    const result = await signWshSortedMultiPsbt(input());
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: { signedInputCount: 2 },
+    });
+    expect(mocks.addPartialSignaturesToPsbt).toHaveBeenCalledWith('unsigned-psbt', [
+      expect.objectContaining({ inputIndex: 0 }),
+      expect.objectContaining({ inputIndex: 1 }),
     ]);
   });
 });
