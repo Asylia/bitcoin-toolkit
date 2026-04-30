@@ -155,12 +155,12 @@ export function verifySegwitV0SignatureAgainstPubkey(
 ): boolean {
   if (pubkey.length !== 33) return false;
   let der = signatureBytes;
-  if (
-    der.length > 0 &&
-    der[der.length - 1] === 0x01 &&
-    !looksLikeDerSignature(der)
-  ) {
-    der = der.slice(0, -1);
+  if (der.length > 0 && !looksLikeDerSignature(der)) {
+    const maybeSighashType = der[der.length - 1];
+    const withoutSighashType = der.slice(0, -1);
+    if (!looksLikeDerSignature(withoutSighashType)) return false;
+    if (maybeSighashType !== 0x01) return false;
+    der = withoutSighashType;
   }
   let compact;
   try {
