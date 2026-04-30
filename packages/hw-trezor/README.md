@@ -1,180 +1,194 @@
 # @asylia/hw-trezor
 
-**Status:** v0.1 — xpub export and `wsh(sortedmulti(...))` PSBT signing both shipping.
+Trezor hardware-wallet adapter for the Asylia self-custody platform. It wraps
+`@trezor/connect-web` behind a narrow Asylia-shaped API for initialization,
+environment checks, xpub export, address display, live events, and PSBT signing.
 
-Asylia Trezor adapter. Wraps `@trezor/connect-web` behind an Asylia-shaped surface (`initTrezor`, `exportTrezorRoot`, `signWshSortedMultiPsbt`) so the wallet UI never imports the vendor SDK directly.
+The wallet UI never imports Trezor Connect directly. Every device interaction
+that can influence a Bitcoin vault passes through this package, making the
+security boundary easy to audit and reuse outside the Vue app.
 
-## Why a separate package
+Keywords: Trezor, Bitcoin hardware wallet, Trezor Connect, PSBT signing, P2WSH
+multisig, BIP-48, BIP-380 descriptor, xpub export, self-custody, TypeScript.
+
+## Maintainer And Support
+
+`@asylia/hw-trezor` is maintained by [Asylian21](https://github.com/Asylian21).
+
+> **Support Asylia Bitcoin tooling**
+>
+> If this work helps your wallet, audit, integration, or research, you can
+> support ongoing development with a Bitcoin donation:
+> `bc1qrdchup8497xz0972v35q4nr0fx5egghf0z23c3`
+
+## Status
+
+`0.1.0-dev`. Initialization, environment detection, xpub export, address
+display, live events, and `wsh(sortedmulti(...))` PSBT signing are implemented.
+
+## Why This Package Exists
 
 Hardware-wallet code is a hard security boundary:
 
 - It speaks to a physical device the user trusts.
-- It interprets PSBTs into device-side prompts the user signs.
-- It owns the wire protocol with the vendor SDK.
+- It requests xpub material and master fingerprints.
+- It maps PSBT data into device prompts.
+- It receives signatures that may authorize Bitcoin spends.
+- It must normalize vendor failures into predictable application states.
 
-Pulling it out of the wallet SPA makes the boundary easy to audit, upgradeable independently of the UI, and reusable by the planned Capacitor signer app.
+Pulling the Trezor integration out of the wallet SPA keeps the audited surface
+small, isolates vendor SDK upgrades, and leaves room for a future Capacitor
+signer to reuse the same logic.
 
 ## Public API
 
+Every public export comes from `src/index.ts`.
+
+| Export | Purpose |
+| --- | --- |
+| `initTrezor(manifest)` | Idempotent Trezor Connect bootstrap. |
+| `detectTrezorEnvironment()` | Browser/transport capability probe for UX guidance. |
+| `recommendationFromEnvironment()` | Converts environment state into recommended next steps. |
+| `exportTrezorRoot({ derivationPath, scriptType })` | Prompts the device for the BIP-48 multisig root xpub and master fingerprint. |
+| `displayWshSortedMultiAddress(input)` | Requests an on-device display of a derived P2WSH multisig address. |
+| `signWshSortedMultiPsbt(input)` | Translates a PSBT v2 into Trezor's transaction format, collects signatures, verifies ownership, and merges partial signatures back into the PSBT. |
+| `subscribeToTrezorEvents(handler)` | Streams device, prompt, and transport events for UI steppers and diagnostics. |
+| Public types | Adapter result, manifest, device info, script type, export/sign/display inputs, and normalized errors. |
+
+All high-level flows return `AdapterResult<T>`: `{ ok: true, data }` or
+`{ ok: false, error }`. UI code should render adapter errors directly instead of
+catching and pattern-matching raw vendor exceptions.
+
+## Example
+
 ```ts
 import {
-  initTrezor,
   exportTrezorRoot,
+  initTrezor,
   signWshSortedMultiPsbt,
-  type ExportRootResult,
-  type SignPsbtResult,
-  type TrezorManifest,
-  type TrezorScriptType,
-} from '@asylia/hw-trezor'
+} from '@asylia/hw-trezor';
 
-// 1. Bootstrap (idempotent — safe to call from every screen).
 await initTrezor({
   appName: 'Asylia Wallet',
   appUrl: 'https://wallet.asylia.io',
   email: 'support@asylia.io',
-})
+});
 
-// 2. Prompt the device for the BIP-48 multisig root xpub.
-const exportResult = await exportTrezorRoot({
-  derivationPath: "m/48'/0'/0'/2'", // P2WSH multisig — wsh(sortedmulti(...))
+const exported = await exportTrezorRoot({
+  derivationPath: "m/48'/0'/0'/2'",
   scriptType: 'p2wsh',
-})
+});
 
-if (exportResult.ok) {
-  const { xpub, masterFingerprint, device } = exportResult.data
-  // Persist (xpub + masterFingerprint) in V1_SignKeys.
+if (exported.ok) {
+  const { xpub, masterFingerprint, device } = exported.data;
+  // Persist xpub + masterFingerprint as signer metadata.
 }
 
-// 3. Sign a PSBT v2 produced by `@asylia/btc-core/buildWshSortedMultiPsbt`.
-//    One device prompt covers every input the supplied cosigner can sign.
-const signResult = await signWshSortedMultiPsbt({
-  psbtBase64,                         // base64 PSBT v2
+const signed = await signWshSortedMultiPsbt({
+  psbtBase64,
   vault: {
-    requiredSignatures: 2,            // m in m-of-n
-    keys: descriptorKeys,             // every cosigner's xpub + fingerprint + path
+    requiredSignatures: 2,
+    keys: descriptorKeys,
   },
-  signerFingerprint: 'd34db33f',      // hint: cosigner the user picked in the UI
-})
-
-if (signResult.ok) {
-  const {
-    psbtBase64: updated,
-    signedInputCount,
-    requestedFingerprint,
-    signedAsFingerprint,
-    pivoted,
-  } = signResult.data
-
-  // Persist `updated` to the proposal store; `signedInputCount`
-  // tells you how many inputs the device just attached signatures
-  // to (typically equal to the number of vault inputs in the spend).
-  //
-  // When `pivoted === true`, the connected device represented a
-  // *different* cosigner than the one the user picked (e.g. a
-  // different passphrase wallet on the same physical Trezor).
-  // The signature is attached to `signedAsFingerprint`'s slot, not
-  // `requestedFingerprint`'s — surface that in the UI so the user
-  // does not "re-sign with the right passphrase" and end up with
-  // two attempts under one cosigner.
-}
+  signerFingerprint: 'd34db33f',
+});
 ```
 
-Both adapter functions return `{ ok, data | error }` — never throw — so callers can render inline error states without try/catch.
+## Derivation and Script Policy
 
-## Why xpub at `m/48'/coin'/account'/script_type'`
+Asylia targets native-SegWit BIP-48 multisig only:
 
-Asylia targets **native-SegWit BIP-48 multisig only** — `wsh(sortedmulti(...))` at `script_type = 2'`. From the xpub at this depth, the client can derive every receive and change address (`/0/i`, `/1/i`) without re-prompting the device, because `chain` and `index` are unhardened.
+```text
+wsh(sortedmulti(...)) at m/48'/0'/0'/2'
+```
 
-The nested-SegWit BIP-48 branch (`script_type = 1'`, `sh(wsh(...))`) is intentionally **NOT supported** by this adapter and not on the roadmap. The `TrezorScriptType` union exposes a single value (`'p2wsh'`) so adding the legacy variant is a typed compile-time decision, not an oversight.
+From that xpub depth, the wallet derives receive and change addresses with
+unhardened `/0/i` and `/1/i` children without asking the device again.
 
-## Master fingerprint
+The nested-SegWit BIP-48 branch (`m/48'/0'/0'/1'`, `sh(wsh(...))`) is not
+supported. The `TrezorScriptType` union intentionally exposes only `p2wsh`.
 
-Trezor returns a BIP-380 descriptor of the form `[xfp/path]xpub#checksum`. The adapter parses the leading 8-character hex as the master fingerprint, which is the canonical key identity in BIP-380 and the value Asylia stores in `V1_SignKeys.fingerprint`.
+## Master Fingerprint
 
-The descriptor field is unavailable on Trezor Model One; the adapter returns a precise `descriptor_unavailable` error in that case so the UI can prompt the user to upgrade.
+Trezor returns descriptor-shaped public-key metadata. The adapter parses the
+leading 8-character hex fingerprint and returns it as
+`masterFingerprint`, which is the signer identity Asylia stores for matching
+future signatures.
 
-## Connection transports and prompts (web)
+Trezor Model One cannot return the descriptor field required for this flow. The
+adapter returns `descriptor_unavailable` so the wallet can show precise upgrade
+guidance instead of a generic failure.
 
-The adapter uses Trezor's default `coreMode: 'auto'` core resolution:
+## Web Transport Model
 
-- If the local Trezor service is available (standalone Bridge or the
-  service hosted by Trezor Suite) → `iframe` mode, with device events
-  streaming into the SPA.
-- Otherwise → `popup` mode, where the official Trezor Connect popup
-  uses WebUSB inside the popup.
+The adapter uses Trezor Connect's `coreMode: 'auto'` resolution:
 
-Browser-side permission, PIN, and passphrase prompts are owned by the
-official Trezor Connect popup. Export approval remains on the physical
-Trezor screen. The wallet UI should not tell the user that Trezor Suite
-itself handles those prompts; Suite is only relevant as a local
-transport provider or as a possible competing app holding the device.
+- local Trezor service or Suite transport available: iframe mode with event
+  streaming into the SPA,
+- otherwise: popup mode, with Trezor Connect owning browser-side prompts.
 
-**No Bluetooth.** `@trezor/connect-web` is USB-only in the browser, even for Trezor Safe 7 (which does have a hardware BLE radio). BLE will land with the future Capacitor signer app where the OS exposes proper BLE APIs.
+PIN, passphrase, permission, and export approval prompts are owned by Trezor
+Connect and the physical Trezor device. `@trezor/connect-web` is USB-only in the
+browser; Bluetooth belongs to a future native mobile signer path.
 
-## Errors
+## Signing Model
 
-Vendor failures are normalised through `errors.ts` into a small, stable set:
+Trezor Connect does not sign PSBT payloads directly. It signs a Trezor-native
+transaction shape. `signWshSortedMultiPsbt` bridges that gap:
 
-| Code                       | Meaning                                                |
-| -------------------------- | ------------------------------------------------------ |
-| `init_failed`              | TrezorConnect.init failed (iframe blocked, etc.)        |
-| `manifest_required`        | No manifest passed — configuration error.               |
-| `cancelled`                | User dismissed the popup or rejected on the device.     |
-| `device_disconnected`      | Cable unplugged mid-call.                               |
-| `device_not_found`         | No device detected.                                     |
-| `device_in_use`            | Trezor is busy with another window or call.             |
-| `device_locked`            | Suite / another tab appears to hold the device session. |
-| `device_timeout`           | Device did not answer before the wall-clock timeout.    |
-| `firmware_too_old`         | Update needed in Trezor Suite first.                    |
-| `descriptor_unavailable`   | Model One — can't return BIP-380 descriptor.            |
-| `invalid_path`             | Path rejected by the device or pre-flight regex.        |
-| `transport_unavailable`    | Bridge missing, WebUSB blocked.                         |
-| `unknown`                  | Catch-all; the original cause is kept on `error.cause`. |
+1. Inspect the PSBT v2 with `@asylia/btc-core`.
+2. Translate inputs into Trezor `SPENDWITNESS` entries with multisig metadata.
+3. Translate external outputs and vault change outputs into device-readable
+   prompts.
+4. Preserve PSBT version and locktime so signatures are over the transaction the
+   wallet will actually finalize.
+5. Verify returned signatures against the expected cosigner pubkeys.
+6. Re-attribute signatures when a different valid passphrase wallet signs from
+   the same physical device.
+7. Merge verified signatures back into the PSBT with the SIGHASH_ALL byte.
 
-Every code maps to short, user-facing copy in `errors.ts`. The wallet renders that copy directly inside the `Alert` component on the Connect step.
+If no vault cosigner owns a returned signature, the adapter refuses it. Broken
+or misattributed partial signatures should never reach the proposal store.
 
-## Why MIT
+## Error Model
 
-Same reasoning as `@asylia/btc-core`: this package is a security-critical surface and must be auditable. MIT matches the license model used by `@trezor/connect-web` and the rest of the Bitcoin tooling ecosystem.
+Vendor failures are normalized into stable `TrezorErrorCode` values:
 
-## How signing works
+```text
+init_failed | manifest_required | cancelled | device_disconnected |
+device_not_found | device_in_use | device_locked | device_timeout |
+firmware_too_old | descriptor_unavailable | invalid_path |
+transport_unavailable | unknown
+```
 
-Trezor Connect's `signTransaction` API does **not** consume PSBT payloads directly. It speaks Trezor's native protobuf shape: `TxInputType[]`, `TxOutputType[]`, with multisig metadata expressed as a `MultisigRedeemScriptType` (nodes + per-pubkey path, threshold, optional `pubkeys_order` flag).
+The wallet renders the adapter's user-facing message. It should not depend on
+Trezor Connect's raw error strings.
 
-The `signWshSortedMultiPsbt` function bridges the two formats:
+## Not in Scope
 
-1. Walks the PSBT v2 with the `inspectPsbtV2` helper from `@asylia/btc-core` to extract every input's outpoint, witness UTXO, witness script, bip32Derivation, and any partial sigs already attached.
-2. Translates each input into a `SPENDWITNESS` Trezor input with a populated multisig block (`nodes` = cosigner xpubs at depth 4, shared `address_n: [chain, index]`, `pubkeys_order: LEXICOGRAPHIC` so the on-chain script reproduces `sortedmulti`).
-3. Translates outputs into `PAYTOADDRESS` (external recipients, address recovered from the script via `addressFromScript`) or `PAYTOWITNESS` (change back to the vault, with the same multisig block + the signing cosigner's `address_n` so the device renders the output as "change returning to my wallet").
-4. Calls `TrezorConnect.signTransaction` with **one** device prompt covering every signable input. The PSBT's `nVersion` and locktime are forwarded explicitly — Trezor's defaults (`version=1`, `locktime=0` for Bitcoin) would otherwise produce signatures over a different sighash than the one the wallet finalises and the network verifies.
-5. **Post-flight verification.** The adapter recomputes the canonical BIP-143 sighash directly from the PSBT and ECDSA-verifies every fresh signature against the picked cosigner's pubkey. On a mismatch — the typical case when one Trezor hosts the whole `m`-of-`n` set behind separate passphrase wallets and the active passphrase is a *different* vault cosigner than the one the operator clicked — the adapter sweeps every cosigner pubkey on the input and re-attributes the signature to the slot it mathematically belongs to (`pivoted: true` on the result). When no cosigner matches at all the signature is refused, so a broken partial sig never reaches the proposal store.
-6. Stitches the (possibly re-attributed) signatures back into the PSBT through `addPartialSignaturesToPsbt`, appending the SIGHASH_ALL byte (0x01) so the result round-trips through every standard finaliser.
+This package does not:
 
-The wallet then writes the updated PSBT back to `V1_VaultProposals` via `patchProposal`. Subsequent cosigners pick up where the previous one left off — the partial sigs already in the PSBT are echoed back into Trezor's `multisig.signatures` slot so the device refuses to produce a duplicate.
+- persist xpubs, fingerprints, or signatures,
+- store seed phrases or private keys,
+- render UI,
+- fetch chain data,
+- build descriptors or PSBTs from scratch,
+- support non-Asylia script families.
 
-### Why no pre-flight identity check?
+Descriptor construction and PSBT helpers live in `@asylia/btc-core`.
 
-An earlier draft of this adapter called `getPublicKey({ showOnTrezor: false })` at the start of every signing session to fetch the connected device's master fingerprint and detect the cross-passphrase case before going anywhere near the device's signing prompt. It worked, but Trezor Suite still surfaces an "Export accounts" confirmation for that call (the device does not consider an xpub disclosure consentless), so the operator faced **two** on-device prompts per signature — first the xpub export, then the actual transaction confirmation.
+## Testing
 
-The post-flight verification offers the same safety guarantee with **one** prompt:
+```bash
+yarn workspace @asylia/hw-trezor type-check
+yarn workspace @asylia/hw-trezor test
+```
 
-- **Wrong device entirely.** Trezor itself refuses to sign a P2WSH multisig input with a key that is not in the supplied multisig pubkey set. The signing call errors out before producing a signature.
-- **Wrong passphrase wallet but still a vault cosigner.** Trezor signs with the active passphrase's key (which IS in the multisig set, just a different cosigner than the operator clicked). The post-flight verifier moves the signature to the correct slot.
-- **Wallet stale / desync future bug.** Whatever produced the signature, if it doesn't ECDSA-verify against any vault cosigner pubkey on this input, the adapter refuses it.
+## Versioning and Audit Stance
 
-Trade-off accepted: in the "wrong device, no vault cosigner active" case the operator sits through Trezor's transaction-review screen before getting an error, instead of an early refusal. That is rare in practice and the UX win on the common path is worth it.
-
-## Roadmap
-
-- ✅ `init.ts` — Trezor Connect bootstrap (idempotent, lazy iframe load).
-- ✅ `xpub.ts` — descriptor-shaped xpub export per derivation path with master fingerprint normalisation.
-- ✅ `errors.ts` — Asylia-friendly normalised errors so the UI never sees raw Trezor codes.
-- ✅ `sign.ts` — PSBT v2 → Trezor `signTransaction` translation for `wsh(sortedmulti(...))` spends, partial-sig merge back into the PSBT.
-
-## Versioning + audit stance
-
-See [`SECURITY.md`](./SECURITY.md). The package is `0.1.0-dev` until it ships its first audited stable API.
+The package remains `0.1.0-dev` until the first audited stable API. See
+[`SECURITY.md`](./SECURITY.md) for the disclosure process and security scope.
 
 ## License
 
-MIT — see [`LICENSE`](./LICENSE).
+MIT - see [`LICENSE`](./LICENSE).

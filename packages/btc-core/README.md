@@ -1,113 +1,168 @@
 # @asylia/btc-core
 
-**Status:** scaffolded, not yet implemented. Tracks the design from the
-`asylia60/packages/asylia-wallets/p2wsh` reference codebase, adapted from
-P2SH-wrapped P2WSH to pure native-SegWit P2WSH (`wsh(sortedmulti(...))`)
-at the BIP-48 multisig path `m/48'/0'/0'/2'`.
+Framework-agnostic Bitcoin primitives for the Asylia self-custody platform:
+native-SegWit P2WSH multisig descriptors, BIP-48 derivation, deterministic
+address generation, PSBT v2 construction and inspection, signature verification,
+and coin-selection helpers.
 
-## Script policy (locked)
+This is the core audit package behind Asylia's wallet. It contains no Vue, DOM,
+Supabase, browser storage, or product UI code. The same functions can run in the
+wallet SPA, a future Capacitor signer, Node-based audit tooling, or independent
+review harnesses.
 
-This package will only ever emit, parse, and reason about a **single**
-multisig output script: `wsh(sortedmulti(N, key1, key2, ...))`. Every
-descriptor builder, address generator, and PSBT helper is hard-wired to
-that shape — there is no script-type parameter to flip.
+Keywords: Bitcoin, multisig, P2WSH, `wsh(sortedmulti(...))`, BIP-48, BIP-380,
+PSBT v2, BIP-370, descriptor checksum, hardware wallet signing, TypeScript,
+self-custody.
 
-The legacy nested-SegWit branch — P2SH-P2WSH (`sh(wsh(...))`) at BIP-48
-`script_type = 1'` — is **not supported and will not be added**. Keeping
-the cryptographic surface narrow is the whole point of this package; one
-script means one set of derivation, signing, and finalisation paths to
-audit.
+## Maintainer And Support
 
-Asylia's framework-agnostic Bitcoin core: descriptors, derivation helpers,
-address generation, PSBT primitives, and script policy types. Everything in
-this package is pure TypeScript with no DOM, no Vue, and no Asylia-specific
-service dependencies, so it can be reused by:
+`@asylia/btc-core` is maintained by [Asylian21](https://github.com/Asylian21).
 
-- the Asylia wallet SPA (`@asylia/wallet`)
-- a future Capacitor signer app
-- backend tooling and audit harnesses
-- third parties who want to verify what the wallet does to a key, a script,
-  or a transaction
+> **Support Asylia Bitcoin tooling**
+>
+> If this work helps your wallet, audit, integration, or research, you can
+> support ongoing development with a Bitcoin donation:
+> `bc1qrdchup8497xz0972v35q4nr0fx5egghf0z23c3`
 
-## Why MIT
+## Status
 
-Anything that touches Bitcoin keys, scripts, or transactions in this product
-must be **auditable**. The MIT license is the dominant license in the
-Bitcoin tooling ecosystem (`bitcoinjs-lib`, `@scure/btc-signer`,
-`@trezor/connect`, `@ledgerhq/hw-app-btc`) and matches what reviewers and
-contributors expect. The rest of the Asylia repository (apps, marketing,
-shared UI) is proprietary; the OSS boundary stops at this package and its
-sibling `hw-*` packages.
+`0.1.0-dev`. The package already ships the active Asylia wallet primitives, but
+the public API can still change before the first audited stable release.
 
-## Planned scope
+## Script Policy
 
-Borrowed from the existing Asylia reference codebases (see the root README
-"Reuse map" section), adapted to native-SegWit P2WSH multisig:
+`@asylia/btc-core` supports exactly one wallet script family:
 
-- `wallet/p2wsh.ts` — `createP2wshWallet()` builder using sorted child
-  pubkeys, `p2ms`, and `p2wsh` (adapted from
-  `asylia60/packages/asylia-wallets/p2wsh/wallet.ts` by removing the
-  outer `p2sh()` wrap so the on-chain script is `wsh(sortedmulti(...))`).
-- `wallet/derivation.ts` — BIP32 helpers, descriptor parsing.
-  Default multisig branch: `m/48'/0'/0'/2'`.
-- `psbt/build.ts`, `psbt/finalize.ts`, `psbt/inspect.ts` — PSBT lifecycle.
-- `script/policy.ts` — `2-of-3`, `3-of-5`, ... discriminated unions.
-- `address/generate.ts` — deterministic address derivation per policy.
+```text
+wsh(sortedmulti(N, key1, key2, ...))
+```
 
-## Already shipping
+Asylia uses the native-SegWit BIP-48 multisig branch:
 
-- `buildWshSortedMultiDescriptor()` — assembles the canonical
-  `wsh(sortedmulti(...))#checksum` descriptor (plus BIP-389-free
-  receive / change siblings for older tooling).
-- `deriveWshSortedMultiAddress()` / `deriveWshSortedMultiAddressBatch()`
-  — pure address derivation per `(chain, index)` slot.
-- `buildWshSortedMultiInstance()` — same derivation but returns the
-  bitcoinjs-lib payment instances for inspection / audit logging.
-- `buildWshSortedMultiPsbt()` — full PSBT v2 (BIP-370) builder for a
-  spend, complete with witness scripts, per-cosigner
-  `bip32Derivation` blocks, and `nonWitnessUtxo` when callers provide
-  each input's raw funding transaction.
-- `extractPsbtInputs()` — read every PSBT input outpoint to drive the
-  wallet-side "is this UTXO locked by another proposal?" check.
-- `inspectPsbtV2()` — decode an existing PSBT v2 string into a typed
-  view (inputs, outputs, bip32Derivation, partial sigs) hardware
-  adapters can iterate over without touching `@caravan/psbt`.
-- `addPartialSignaturesToPsbt()` — merge fresh partial signatures into
-  a PSBT v2; appends the SIGHASH_ALL byte automatically.
-- `bip32PathToAddressN()` — convert a printable BIP-32 path into the
-  `address_n` array hardware wallets expect.
-- `addressFromScript()` — decode a `scriptPubKey` back into the standard
-  bech32 / base58 address; used by hardware adapters that need to
-  render an outgoing recipient on the device.
-- `selectCoinsLargestFirst()` / `maxSpendableSats()` — coin selection
-  + max-amount helpers shared by the wallet's Send flow.
+```text
+m/48'/0'/0'/2'
+```
 
-## Not in scope
+The package does not expose a generic script-type switch. Nested SegWit
+P2SH-P2WSH (`sh(wsh(...))`), Taproot, legacy P2PKH, and arbitrary scripts are
+intentionally out of scope. A single script family keeps descriptor building,
+address derivation, PSBT construction, hardware-wallet mapping, and audits small
+enough to reason about carefully.
 
-This package does **not**:
+## Public API
 
-- store seed phrases or private keys
-- talk to any blockchain provider directly (that lives in a future
-  `@asylia/blockchain-data-btc` package)
-- depend on Vue, the DOM, Supabase, or any Asylia application module
-- emit or accept any Bitcoin script other than `wsh(sortedmulti(...))` —
-  no P2SH, no P2SH-P2WSH (`sh(wsh(...))`), no P2TR, no legacy P2PKH
+Every public export comes from `src/index.ts`. The most important surfaces are:
 
-If a feature requires any of the above, it does not belong here.
+| Area | Exports |
+| --- | --- |
+| Descriptors | `buildWshSortedMultiDescriptor`, `descriptorChecksum`, `withChecksum`, `toCanonicalXpub` |
+| Imports | `parseAsyliaVaultConfig`, `parseCaravanWalletConfig`, `parseSparrowWalletConfig`, `parseDescriptorImport` |
+| Vault identity | `vaultIdentityKey` |
+| Address derivation | `deriveWshSortedMultiAddress`, `deriveWshSortedMultiAddressBatch`, `buildWshSortedMultiInstance` |
+| Address parsing | `parseBitcoinAddress`, `describeBitcoinAddressType` |
+| PSBT build/inspect | `buildWshSortedMultiPsbt`, `extractPsbtInputs`, `inspectPsbtV2`, `addressFromScript`, `bip32PathToAddressN` |
+| Signatures | `addPartialSignaturesToPsbt`, `computeBip143SighashAll`, `verifySegwitV0SignatureAgainstPubkey`, `findSegwitV0SignatureOwner`, `findSegwitV0SignatureOwnerForPsbt` |
+| Finalization | `countPsbtSigners`, `collectSignerFingerprints`, `finaliseAndExtractTransaction` |
+| Coin selection | `selectCoinsLargestFirst`, `selectCoinsLargestFirstFixedFee`, `maxSpendableSats` |
 
-## Versioning + audit stance
+## Example
 
-The package is currently `0.0.0-dev`. Until it ships its first stable API
-the public surface may break in any commit. Once an audit-ready API exists,
-we will:
+```ts
+import {
+  buildWshSortedMultiDescriptor,
+  deriveWshSortedMultiAddress,
+} from '@asylia/btc-core';
 
-- publish under semantic versioning,
-- maintain `CHANGELOG.md` (Keep-a-Changelog format),
-- tag every audited release in git,
-- and document the auditor + scope in `SECURITY.md`.
+const keys = [
+  {
+    fingerprint: 'd34db33f',
+    derivationPath: "48'/0'/0'/2'",
+    xpub: 'xpub...',
+  },
+  {
+    fingerprint: 'f00dbabe',
+    derivationPath: "48'/0'/0'/2'",
+    xpub: 'xpub...',
+  },
+  {
+    fingerprint: '8badf00d',
+    derivationPath: "48'/0'/0'/2'",
+    xpub: 'xpub...',
+  },
+] as const;
 
-See [`SECURITY.md`](./SECURITY.md) for vulnerability disclosure.
+const descriptor = buildWshSortedMultiDescriptor({
+  network: 'mainnet',
+  requiredSignatures: 2,
+  keys,
+});
+
+const firstReceive = deriveWshSortedMultiAddress({
+  network: 'mainnet',
+  requiredSignatures: 2,
+  keys,
+  chain: 0,
+  index: 0,
+});
+```
+
+## Import Guarantees
+
+Import helpers normalize Asylia, Caravan, Sparrow, raw BIP-380 descriptor, and
+Bitcoin Core `importdescriptors` inputs into one `ParsedMultisigImport` shape.
+Validation is strict by design:
+
+- mainnet only,
+- native P2WSH only,
+- valid BIP-380 checksum when supplied,
+- valid fingerprints, derivation paths, and xpub material,
+- deterministic signer ordering for duplicate detection.
+
+Malformed input is rejected at the boundary instead of becoming a broken vault
+row downstream.
+
+## PSBT and Hardware Wallets
+
+The PSBT surface is designed for hardware-wallet adapters:
+
+- `buildWshSortedMultiPsbt` creates PSBT v2 spends with witness scripts and
+  per-cosigner BIP-32 derivation metadata.
+- `inspectPsbtV2` gives adapters a typed view of inputs, outputs, existing
+  partial signatures, and derivation records.
+- `computeBip143SighashAll` and `findSegwitV0SignatureOwner` let adapters verify
+  that a returned signature belongs to the expected cosigner before it is merged.
+- `addressFromScript` lets adapters recover standard recipient addresses for
+  device prompts.
+
+## Not in Scope
+
+This package does not:
+
+- store seed phrases, private keys, passphrases, or hardware-wallet secrets,
+- fetch blockchain data,
+- broadcast transactions,
+- own wallet persistence,
+- render UI,
+- depend on Vue, Supabase, or any Asylia application module,
+- support scripts outside `wsh(sortedmulti(...))`.
+
+If a feature needs upstream chain data, use `@asylia/blockchain-data-btc`. If it
+needs a device SDK, use `@asylia/hw-trezor` or `@asylia/hw-ledger`.
+
+## Testing
+
+```bash
+yarn workspace @asylia/btc-core type-check
+yarn workspace @asylia/btc-core test
+yarn workspace @asylia/btc-core test:coverage
+```
+
+## Versioning and Audit Stance
+
+Until the first stable release, breaking changes are allowed. Stable releases
+will use semantic versioning, changelog entries, git tags, and documented audit
+scope. Vulnerability disclosure is covered in [`SECURITY.md`](./SECURITY.md).
 
 ## License
 
-MIT — see [`LICENSE`](./LICENSE).
+MIT - see [`LICENSE`](./LICENSE).

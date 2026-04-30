@@ -1,7 +1,7 @@
 /**
  * `@asylia/hw-ledger` — Ledger adapter for the Asylia wallet.
  *
- * Wraps `ledger-bitcoin` (the official Bitcoin app v2+ client) and
+ * Wraps `@ledgerhq/ledger-bitcoin` (the official Bitcoin app v2+ client) and
  * `@ledgerhq/hw-transport-webhid` behind an Asylia-shaped adapter so
  * the wallet SPA never imports a LedgerHQ package directly. The
  * package is the single audited boundary between the wallet code and

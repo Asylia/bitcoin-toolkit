@@ -8,7 +8,7 @@
  * the software-derived address before telling the user the address is safe.
  */
 import { Buffer } from 'buffer';
-import { AppClient } from 'ledger-bitcoin';
+import { AppClient } from '@ledgerhq/ledger-bitcoin';
 
 import {
   buildDeviceInfo,

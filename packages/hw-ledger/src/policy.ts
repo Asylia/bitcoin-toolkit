@@ -7,7 +7,7 @@
  * next to the policy details, then reuses it later for address display
  * and PSBT signing.
  */
-import { AppClient, WalletPolicy } from 'ledger-bitcoin';
+import { AppClient, WalletPolicy } from '@ledgerhq/ledger-bitcoin';
 import {
   canonicalizeDerivationPath,
   stripMasterPrefix,

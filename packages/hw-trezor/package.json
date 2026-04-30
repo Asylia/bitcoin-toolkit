@@ -3,21 +3,31 @@
   "version": "0.0.0-dev",
   "private": true,
   "type": "module",
-  "description": "Asylia Trezor adapter — initialisation, xpub export, and PSBT signing for the Asylia wallet.",
+  "description": "Auditable Trezor hardware-wallet TypeScript adapter for Connect initialization, environment checks, xpub export, address display, and P2WSH multisig PSBT signing.",
   "license": "MIT",
   "author": "Asylia",
   "repository": {
     "type": "git",
-    "url": "https://github.com/asylia/asylia.io.git",
+    "url": "git+https://github.com/Asylia/bitcoin-toolkit.git",
     "directory": "packages/hw-trezor"
   },
-  "homepage": "https://github.com/asylia/asylia.io/tree/main/packages/hw-trezor",
-  "bugs": "https://github.com/asylia/asylia.io/issues",
+  "homepage": "https://github.com/Asylia/bitcoin-toolkit/tree/main/packages/hw-trezor#readme",
+  "bugs": {
+    "url": "https://github.com/Asylia/bitcoin-toolkit/issues"
+  },
   "keywords": [
     "bitcoin",
     "trezor",
+    "trezor-connect",
     "hardware-wallet",
+    "xpub",
+    "bip48",
+    "bip380",
+    "p2wsh",
+    "multisig",
     "psbt",
+    "psbt-signing",
+    "typescript",
     "self-custody",
     "asylia"
   ],

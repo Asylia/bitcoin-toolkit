@@ -3,21 +3,32 @@
   "version": "0.1.0-dev",
   "private": true,
   "type": "module",
-  "description": "Asylia Ledger adapter — wallet policy registration, xpub export, and PSBT signing for the Asylia wallet.",
+  "description": "Auditable Ledger hardware-wallet TypeScript adapter for WebHID environment checks, xpub export, wallet-policy registration, address display, and P2WSH multisig PSBT signing.",
   "license": "MIT",
   "author": "Asylia",
   "repository": {
     "type": "git",
-    "url": "https://github.com/asylia/asylia.io.git",
+    "url": "git+https://github.com/Asylia/bitcoin-toolkit.git",
     "directory": "packages/hw-ledger"
   },
-  "homepage": "https://github.com/asylia/asylia.io/tree/main/packages/hw-ledger",
-  "bugs": "https://github.com/asylia/asylia.io/issues",
+  "homepage": "https://github.com/Asylia/bitcoin-toolkit/tree/main/packages/hw-ledger#readme",
+  "bugs": {
+    "url": "https://github.com/Asylia/bitcoin-toolkit/issues"
+  },
   "keywords": [
     "bitcoin",
     "ledger",
+    "@ledgerhq/ledger-bitcoin",
+    "webhid",
     "hardware-wallet",
+    "wallet-policy",
+    "xpub",
+    "bip48",
+    "p2wsh",
+    "multisig",
     "psbt",
+    "psbt-signing",
+    "typescript",
     "self-custody",
     "asylia"
   ],
@@ -61,8 +72,8 @@
     "@ledgerhq/errors": "^6.34.0",
     "@ledgerhq/hw-transport": "^6.35.1",
     "@ledgerhq/hw-transport-webhid": "^6.35.1",
+    "@ledgerhq/ledger-bitcoin": "^0.3.1",
     "bs58check": "^4.0.0",
-    "ledger-bitcoin": "^0.3.0",
     "tslib": "^2.8.1"
   }
 }

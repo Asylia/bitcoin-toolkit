@@ -6,7 +6,7 @@
  * and shape a stable device descriptor for UI diagnostics. Keeping it
  * here prevents the two hardware flows from drifting apart.
  */
-import type { AppClient } from 'ledger-bitcoin';
+import type { AppClient } from '@ledgerhq/ledger-bitcoin';
 
 import { asAdapterError, fromLedgerError } from './errors';
 import { log } from './log';
@@ -19,7 +19,7 @@ import type { AdapterResult, LedgerDeviceInfo } from './types';
 
 /**
  * Minimum Bitcoin app version that supports the multisig policy flow
- * Asylia needs for `wsh(sortedmulti(...))`. The `ledger-bitcoin`
+ * Asylia needs for `wsh(sortedmulti(...))`. The `@ledgerhq/ledger-bitcoin`
  * client itself documents this as the lower bound for `AppClient`.
  */
 export const MIN_BITCOIN_APP_VERSION = '2.1.0';

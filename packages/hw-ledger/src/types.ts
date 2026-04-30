@@ -3,7 +3,7 @@
  *
  * These shapes are intentionally Asylia-specific (camelCase, no LedgerHQ
  * SDK leak) so the wallet UI never imports `@ledgerhq/*` or
- * `ledger-bitcoin` directly. The adapter is the only audited boundary
+ * `@ledgerhq/ledger-bitcoin` directly. The adapter is the only audited boundary
  * between the wallet code and the vendor SDKs.
  */
 

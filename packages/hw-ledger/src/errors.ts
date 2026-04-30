@@ -22,7 +22,7 @@
  *      `UserRefusedOnDevice`, `TransportStatusError`).
  *
  * `fromLedgerError` accepts any value thrown by the transport or the
- * `ledger-bitcoin` `AppClient`, inspects its shape, and returns the
+ * `@ledgerhq/ledger-bitcoin` `AppClient`, inspects its shape, and returns the
  * closest `LedgerErrorCode` with user-facing copy.
  */
 

@@ -3,20 +3,31 @@
   "version": "0.0.0-dev",
   "private": true,
   "type": "module",
-  "description": "Asylia shared domain types — vault, signer, descriptor, derivation path, UTXO, PSBT proposal.",
+  "description": "Shared TypeScript domain contracts for the Asylia Bitcoin self-custody platform: vaults, signers, descriptors, derivation paths, amounts, UTXOs, PSBT proposals, and audit events.",
   "license": "MIT",
   "author": "Asylia",
   "repository": {
     "type": "git",
-    "url": "https://github.com/asylia/asylia.io.git",
+    "url": "git+https://github.com/Asylia/bitcoin-toolkit.git",
     "directory": "packages/shared-types"
   },
-  "homepage": "https://github.com/asylia/asylia.io/tree/main/packages/shared-types",
-  "bugs": "https://github.com/asylia/asylia.io/issues",
+  "homepage": "https://github.com/Asylia/bitcoin-toolkit/tree/main/packages/shared-types#readme",
+  "bugs": {
+    "url": "https://github.com/Asylia/bitcoin-toolkit/issues"
+  },
   "keywords": [
     "bitcoin",
     "types",
+    "typescript",
     "domain",
+    "domain-model",
+    "multisig",
+    "vault",
+    "signer",
+    "descriptor",
+    "utxo",
+    "psbt",
+    "self-custody",
     "asylia"
   ],
   "main": "./src/index.ts",

@@ -2,7 +2,7 @@
  * Ledger SDK bootstrap.
  *
  * Unlike Trezor's `TrezorConnect.init`, the Ledger stack does not ship
- * a blocking bootstrap call — `ledger-bitcoin`'s `AppClient` is cheap
+ * a blocking bootstrap call — `@ledgerhq/ledger-bitcoin`'s `AppClient` is cheap
  * to construct and the WebHID transport opens lazily. The file still
  * exists so the service layer can keep a single "ready for device
  * traffic" gate with symmetric call sites to `@asylia/hw-trezor`'s

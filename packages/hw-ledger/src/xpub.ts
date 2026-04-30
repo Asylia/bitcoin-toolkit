@@ -4,7 +4,7 @@
  * The single user-facing operation needed by the "Add a key" flow:
  *
  *   1. Open a WebHID transport and construct an `AppClient` from
- *      `ledger-bitcoin` against it.
+ *      `@ledgerhq/ledger-bitcoin` against it.
  *   2. Read the running app name + version via `getAppAndVersion`.
  *      Rejects early if the user is still on the BOLOS dashboard or
  *      has the wrong app open, so the wizard never ships an obscure
@@ -25,7 +25,7 @@
  * client-side from `xpub`.
  */
 
-import { AppClient } from 'ledger-bitcoin';
+import { AppClient } from '@ledgerhq/ledger-bitcoin';
 
 import { asAdapterError, fromLedgerError } from './errors';
 import {

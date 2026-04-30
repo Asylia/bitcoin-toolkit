@@ -3,16 +3,18 @@
   "version": "0.0.0-dev",
   "private": true,
   "type": "module",
-  "description": "Asylia Bitcoin core — native-SegWit P2WSH multisig descriptors (wsh(sortedmulti)), derivation, address generation, PSBT helpers, and script policies. Framework-agnostic and auditable.",
+  "description": "Auditable Bitcoin TypeScript core for native-SegWit P2WSH multisig, BIP-48 derivation, BIP-380 descriptors, PSBT v2, signature verification, and coin selection.",
   "license": "MIT",
   "author": "Asylia",
   "repository": {
     "type": "git",
-    "url": "https://github.com/asylia/asylia.io.git",
+    "url": "git+https://github.com/Asylia/bitcoin-toolkit.git",
     "directory": "packages/btc-core"
   },
-  "homepage": "https://github.com/asylia/asylia.io/tree/main/packages/btc-core",
-  "bugs": "https://github.com/asylia/asylia.io/issues",
+  "homepage": "https://github.com/Asylia/bitcoin-toolkit/tree/main/packages/btc-core#readme",
+  "bugs": {
+    "url": "https://github.com/Asylia/bitcoin-toolkit/issues"
+  },
   "keywords": [
     "bitcoin",
     "multisig",
@@ -20,7 +22,15 @@
     "wsh",
     "sortedmulti",
     "bip48",
+    "bip380",
     "psbt",
+    "psbt-v2",
+    "bip370",
+    "descriptor",
+    "bitcoin-descriptor",
+    "coin-selection",
+    "hardware-wallet",
+    "typescript",
     "self-custody",
     "asylia"
   ],

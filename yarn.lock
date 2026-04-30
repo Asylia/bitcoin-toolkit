@@ -56,9 +56,9 @@ __metadata:
     "@ledgerhq/errors": "npm:^6.34.0"
     "@ledgerhq/hw-transport": "npm:^6.35.1"
     "@ledgerhq/hw-transport-webhid": "npm:^6.35.1"
+    "@ledgerhq/ledger-bitcoin": "npm:^0.3.1"
     "@vitest/coverage-v8": "npm:^4.1.5"
     bs58check: "npm:^4.0.0"
-    ledger-bitcoin: "npm:^0.3.0"
     rimraf: "npm:^6.1.3"
     tslib: "npm:^2.8.1"
     typescript: "npm:^6.0.3"
@@ -155,34 +155,75 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@bitcoinerlab/descriptors@npm:^1.1.1":
-  version: 1.1.1
-  resolution: "@bitcoinerlab/descriptors@npm:1.1.1"
+"@bitcoinerlab/descriptors-core@npm:3.1.7":
+  version: 3.1.7
+  resolution: "@bitcoinerlab/descriptors-core@npm:3.1.7"
   dependencies:
-    "@bitcoinerlab/miniscript": "npm:^1.2.1"
-    "@bitcoinerlab/secp256k1": "npm:^1.0.5"
-    bip32: "npm:^4.0.0"
-    bitcoinjs-lib: "npm:^6.1.3"
-    ecpair: "npm:^2.1.0"
+    "@bitcoinerlab/miniscript": "npm:^2.0.0"
+    lodash.memoize: "npm:^4.1.2"
+    uint8array-tools: "npm:^0.0.9"
+    varuint-bitcoin: "npm:^2.0.0"
   peerDependencies:
-    ledger-bitcoin: ^0.2.2
+    "@ledgerhq/ledger-bitcoin": ^0.3.1
+    "@noble/curves": ^2.0.1
+    "@noble/hashes": ^2.0.1
+    "@scure/base": ^2.0.0
+    "@scure/bip32": ^2.0.1
+    "@scure/btc-signer": ^2.0.1
+    bip32: ^5.0.1
+    bitcoinjs-lib: ^7.0.1
+    ecpair: ^3.0.1
   peerDependenciesMeta:
-    ledger-bitcoin:
+    "@ledgerhq/ledger-bitcoin":
       optional: true
-  checksum: 10c0/1862c35fd6d188b883f75400393fdbffd07e9be3afa9516624e97b6b43b1b48570bfcae3a0d51477e0a137609575d0339db8aaf4b1e42b6aadcdc75cc2c57fae
+    "@noble/curves":
+      optional: true
+    "@noble/hashes":
+      optional: true
+    "@scure/base":
+      optional: true
+    "@scure/bip32":
+      optional: true
+    "@scure/btc-signer":
+      optional: true
+    bip32:
+      optional: true
+    bitcoinjs-lib:
+      optional: true
+    ecpair:
+      optional: true
+  checksum: 10c0/a931da962d42dfd0531679cabeb4843136aa14b31709abff537edc99ba056106a370b5bae8f57e74895a763057175424d2d7e9707c27df70811932c181b0ceab
   languageName: node
   linkType: hard
 
-"@bitcoinerlab/miniscript@npm:^1.2.1":
-  version: 1.4.3
-  resolution: "@bitcoinerlab/miniscript@npm:1.4.3"
+"@bitcoinerlab/descriptors@npm:^3.0.6":
+  version: 3.1.7
+  resolution: "@bitcoinerlab/descriptors@npm:3.1.7"
+  dependencies:
+    "@bitcoinerlab/descriptors-core": "npm:3.1.7"
+    "@bitcoinerlab/secp256k1": "npm:^1.2.0"
+    bip32: "npm:^5.0.1"
+    bitcoinjs-lib: "npm:^7.0.1"
+    ecpair: "npm:^3.0.1"
+  peerDependencies:
+    "@ledgerhq/ledger-bitcoin": ^0.3.1
+  peerDependenciesMeta:
+    "@ledgerhq/ledger-bitcoin":
+      optional: true
+  checksum: 10c0/ba2eacbd8a36f6ae1689607b4adfd7fe0fdb30ff1bd29c668aa9d895bfea887a34e48cb4647d1e2b1dbee704304deabaaf871d0027d1d0fe5b51b800ddb37c2e
+  languageName: node
+  linkType: hard
+
+"@bitcoinerlab/miniscript@npm:^2.0.0":
+  version: 2.0.0
+  resolution: "@bitcoinerlab/miniscript@npm:2.0.0"
   dependencies:
     bip68: "npm:^1.0.4"
-  checksum: 10c0/656b8d67dc1c2e191f8b5826e373c106c114edb1e2dfa88d90d03c8a4cd19e7e2ab0c996c8474941b24f8de33f0fac4b68abf0836d6e09d6322a071f3b1221e5
+  checksum: 10c0/b01a5f3f87f2aea3cab1c5cd7230969c5ec7fd84410afb1fed72f45dd0a4ea1de9a886ae82a51d0b2af44ec6b3c7d37fd2a510745eaf333390927fa0e094c3ca
   languageName: node
   linkType: hard
 
-"@bitcoinerlab/secp256k1@npm:^1.0.5, @bitcoinerlab/secp256k1@npm:^1.2.0":
+"@bitcoinerlab/secp256k1@npm:^1.2.0":
   version: 1.2.0
   resolution: "@bitcoinerlab/secp256k1@npm:1.2.0"
   dependencies:
@@ -533,6 +574,19 @@ __metadata:
     "@ledgerhq/logs": "npm:^6.17.0"
     events: "npm:^3.3.0"
   checksum: 10c0/dd8fd1e5e493ce21b1ada4e25dccf7604e6407038569ca0e707f67fd3e1474f99102ea600861083281a6fff4ea651f81df501939f50f8a58fdd3ef478322e932
+  languageName: node
+  linkType: hard
+
+"@ledgerhq/ledger-bitcoin@npm:^0.3.1":
+  version: 0.3.1
+  resolution: "@ledgerhq/ledger-bitcoin@npm:0.3.1"
+  dependencies:
+    "@bitcoinerlab/descriptors": "npm:^3.0.6"
+    "@bitcoinerlab/secp256k1": "npm:^1.2.0"
+    "@ledgerhq/hw-transport": "npm:^6.31.13"
+    bip32-path: "npm:^0.4.2"
+    bitcoinjs-lib: "npm:^7.0.1"
+  checksum: 10c0/ad48c11bcd881b6e913a0e90308aace82c6c95e3e6a69ea74951fc5c7ee2bb37f6c15c8f8ed7716155c629f83822512d70b32b625514b000a28139f647c4a582
   languageName: node
   linkType: hard
 
@@ -2388,18 +2442,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"bip32@npm:^4.0.0":
-  version: 4.0.0
-  resolution: "bip32@npm:4.0.0"
-  dependencies:
-    "@noble/hashes": "npm:^1.2.0"
-    "@scure/base": "npm:^1.1.1"
-    typeforce: "npm:^1.11.5"
-    wif: "npm:^2.0.6"
-  checksum: 10c0/b74ffd3a96b42a783eca6455dff8f0decc8360025b69d486d5a047b52cca6e8436bc5a9812cbeae2638a50f35da7fcd85b55cfe58272f55a5b31d7ac40a25522
-  languageName: node
-  linkType: hard
-
 "bip32@npm:^5.0.1":
   version: 5.0.1
   resolution: "bip32@npm:5.0.1"
@@ -2477,7 +2519,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"bitcoinjs-lib-v6@npm:bitcoinjs-lib@^6.1.5, bitcoinjs-lib@npm:^6.1.3, bitcoinjs-lib@npm:^6.1.7":
+"bitcoinjs-lib-v6@npm:bitcoinjs-lib@^6.1.5":
   version: 6.1.7
   resolution: "bitcoinjs-lib@npm:6.1.7"
   dependencies:
@@ -2996,14 +3038,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ecpair@npm:^2.1.0":
-  version: 2.1.0
-  resolution: "ecpair@npm:2.1.0"
+"ecpair@npm:^3.0.1":
+  version: 3.0.1
+  resolution: "ecpair@npm:3.0.1"
   dependencies:
-    randombytes: "npm:^2.1.0"
-    typeforce: "npm:^1.18.0"
-    wif: "npm:^2.0.6"
-  checksum: 10c0/206a3c9af725416e6e91515278259319d88c880cf067c4e4d275fee5e746064cc5bc6279bdb2f87a9218ef25dd82921422d05e0952d4b41c8e91c070c504aa70
+    uint8array-tools: "npm:^0.0.8"
+    valibot: "npm:^1.2.0"
+    wif: "npm:^5.0.0"
+  checksum: 10c0/e89df1f9fe831dfcd191e2dc393d867006bb2203dc5ed7ead832fe169149bd3b1baaefac5acda47f2eb52aca3d0aaad8d4a18f00117bfffb99e07d84d2294eeb
   languageName: node
   linkType: hard
 
@@ -3766,19 +3808,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ledger-bitcoin@npm:^0.3.0":
-  version: 0.3.0
-  resolution: "ledger-bitcoin@npm:0.3.0"
-  dependencies:
-    "@bitcoinerlab/descriptors": "npm:^1.1.1"
-    "@bitcoinerlab/secp256k1": "npm:^1.2.0"
-    "@ledgerhq/hw-transport": "npm:^6.31.13"
-    bip32-path: "npm:^0.4.2"
-    bitcoinjs-lib: "npm:^6.1.7"
-  checksum: 10c0/7d697fe822ba7e2640d45b5694b5f3b0a99813435f76c8c2e4f6ba09f00fae2b550c4ae6daed5a1b88de9feac015e796ec8c7a61bb8fd00aaac48ff15730491a
-  languageName: node
-  linkType: hard
-
 "levn@npm:^0.4.1":
   version: 0.4.1
   resolution: "levn@npm:0.4.1"
@@ -3915,6 +3944,13 @@ __metadata:
   dependencies:
     p-locate: "npm:^5.0.0"
   checksum: 10c0/d3972ab70dfe58ce620e64265f90162d247e87159b6126b01314dd67be43d50e96a50b517bce2d9452a79409c7614054c277b5232377de50416564a77ac7aad3
+  languageName: node
+  linkType: hard
+
+"lodash.memoize@npm:^4.1.2":
+  version: 4.1.2
+  resolution: "lodash.memoize@npm:4.1.2"
+  checksum: 10c0/c8713e51eccc650422716a14cece1809cfe34bc5ab5e242b7f8b4e2241c2483697b971a604252807689b9dd69bfe3a98852e19a5b89d506b000b4187a1285df8
   languageName: node
   linkType: hard
 

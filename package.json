@@ -3,8 +3,33 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Auditable Bitcoin TypeScript packages used by the Asylia self-custody wallet.",
+  "description": "Auditable Bitcoin TypeScript toolkit for native-SegWit multisig, PSBT v2, hardware wallets, and chain-data failover in the Asylia self-custody platform.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Asylia/bitcoin-toolkit.git"
+  },
+  "homepage": "https://github.com/Asylia/bitcoin-toolkit#readme",
+  "bugs": {
+    "url": "https://github.com/Asylia/bitcoin-toolkit/issues"
+  },
+  "keywords": [
+    "bitcoin",
+    "self-custody",
+    "multisig",
+    "p2wsh",
+    "sortedmulti",
+    "bip48",
+    "bip380",
+    "psbt",
+    "psbt-v2",
+    "hardware-wallet",
+    "trezor",
+    "ledger",
+    "wallet-sdk",
+    "typescript",
+    "asylia"
+  ],
   "packageManager": "yarn@4.9.2",
   "workspaces": [
     "packages/*"

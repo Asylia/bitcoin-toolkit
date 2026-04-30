@@ -9,7 +9,7 @@
  * signature before merging it back into the PSBT.
  */
 import { Buffer } from 'buffer';
-import { AppClient } from 'ledger-bitcoin';
+import { AppClient } from '@ledgerhq/ledger-bitcoin';
 import {
   addPartialSignaturesToPsbt,
   inspectPsbtV2,

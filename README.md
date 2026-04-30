@@ -1,26 +1,69 @@
-# Asylia Bitcoin Toolkit
+# Asylia Project: Bitcoin Toolkit
 
-Auditable Bitcoin TypeScript packages used by the Asylia self-custody wallet.
+Auditable Bitcoin TypeScript packages for the Asylia self-custody platform.
 
-This repository is the public open-source boundary for Asylia. It contains
-framework-agnostic code for descriptors, address derivation, PSBT helpers,
-hardware-wallet adapters, chain-data providers, and shared domain types.
+Asylia is a Bitcoin self-custody project focused on native-SegWit multisig
+vaults, hardware-wallet signing, PSBT collaboration, and calm long-term treasury
+operations. This repository is the public open-source boundary of that project:
+the code here is the part external reviewers should be able to inspect without
+needing the private wallet application, brand system, Supabase configuration, or
+internal tooling.
 
-The product wallet, brand surface, design system, mobile shells, Supabase
-configuration, and internal tooling live in a private product repository and
-are intentionally not mirrored here.
+Keywords: Bitcoin self-custody, multisig wallet, P2WSH, `wsh(sortedmulti(...))`,
+BIP-48, BIP-380 descriptors, PSBT v2, Trezor, Ledger, chain-data failover,
+hardware wallet TypeScript, Bitcoin wallet SDK.
+
+## Maintainer And Support
+
+Asylia Bitcoin Toolkit is maintained by [Asylian21](https://github.com/Asylian21).
+
+> **Support Asylia Bitcoin tooling**
+>
+> If this work helps your wallet, audit, integration, or research, you can
+> support ongoing development with a Bitcoin donation:
+> `bc1qrdchup8497xz0972v35q4nr0fx5egghf0z23c3`
+
+## What This Repository Contains
+
+The toolkit contains framework-agnostic packages used by the Asylia wallet to
+derive addresses, build and inspect PSBTs, talk to hardware wallets, fetch
+Bitcoin chain data, and share typed domain contracts across security boundaries.
+
+It intentionally does not contain:
+
+- the Asylia wallet UI,
+- marketing and brand assets,
+- the proprietary design system,
+- Supabase project configuration,
+- mobile shell code,
+- deployment secrets or internal operations tooling.
 
 ## Packages
 
-- `@asylia/btc-core` - native SegWit P2WSH multisig descriptors, address
-  derivation, PSBT helpers, and script policy utilities.
-- `@asylia/blockchain-data-btc` - normalized Bitcoin chain-data providers
-  with failover, cooldowns, rate limiting, and request deduplication.
-- `@asylia/hw-ledger` - Ledger wallet policy, xpub, and PSBT signing adapter.
-- `@asylia/hw-trezor` - Trezor initialization, xpub, multisig, and PSBT
-  signing adapter.
-- `@asylia/shared-types` - shared domain contracts for vaults, signers,
-  descriptors, UTXOs, and PSBT proposals.
+| Package | Purpose |
+| --- | --- |
+| `@asylia/btc-core` | Native-SegWit P2WSH multisig descriptors, BIP-48 derivation, address generation, PSBT v2 build/inspect/finalize helpers, signature verification, and coin selection. |
+| `@asylia/blockchain-data-btc` | Normalized Bitcoin chain-data API across Mempool.space, Blockstream.info, Esplora mirrors, Blockchain.com, Blockcypher, fiat-rate providers, and a caller-owned edge fallback. |
+| `@asylia/hw-ledger` | Ledger WebHID adapter for environment checks, xpub export, wallet-policy registration, address display, and PSBT signing. |
+| `@asylia/hw-trezor` | Trezor Connect adapter for initialization, environment checks, xpub export, address display, and PSBT signing. |
+| `@asylia/shared-types` | Shared domain contracts for vaults, signers, descriptors, derivation paths, amounts, UTXOs, PSBT proposals, and audit events. |
+
+## Security Model
+
+Asylia keeps the audit surface small on purpose:
+
+- One Bitcoin network target in the current product: mainnet.
+- One multisig script family: `wsh(sortedmulti(...))`.
+- One BIP-48 script branch: `m/48'/0'/0'/2'`.
+- Vendor SDKs stay behind hardware adapter packages.
+- Browser and server consumers receive normalized error/result shapes instead of
+  raw vendor strings.
+- The wallet stores xpubs, fingerprints, proposals, and metadata. It does not
+  store seed phrases, private keys, or hardware-wallet secrets.
+
+The packages in this repository are MIT-licensed so auditors, operators, and
+downstream builders can verify the logic that handles descriptors, scripts,
+chain data, devices, and transactions.
 
 ## Development
 
@@ -32,6 +75,24 @@ yarn type-check
 yarn test
 ```
 
+Useful package-level commands:
+
+```bash
+yarn workspace @asylia/btc-core test
+yarn workspace @asylia/blockchain-data-btc type-check
+yarn workspace @asylia/hw-trezor lint
+yarn workspace @asylia/hw-ledger test
+```
+
+## Versioning
+
+The packages currently use development versions while the Asylia wallet hardens
+its first public API. Expect breaking changes until the first audited stable
+release. Stable releases will use semantic versioning, changelog entries, and
+git tags for audit traceability.
+
 ## Security
 
-Please report vulnerabilities privately to security@asylia.io.
+Please report vulnerabilities privately to security@asylia.io. Do not open
+public GitHub issues for suspected vulnerabilities in descriptor, key,
+hardware-wallet, chain-data, or transaction-handling code.

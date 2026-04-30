@@ -1,125 +1,140 @@
 # @asylia/hw-ledger
 
-**Status:** xpub export, wallet-policy registration, environment /
-event surfaces, and PSBT signing are implemented.
+Ledger hardware-wallet adapter for the Asylia self-custody platform. It wraps
+`@ledgerhq/ledger-bitcoin` and `@ledgerhq/hw-transport-webhid` behind a narrow
+Asylia-shaped API for environment checks, xpub export, wallet-policy
+registration, address display, and PSBT signing.
 
-Ledger adapter for the Asylia wallet. Wraps `ledger-bitcoin` (the
-official TypeScript client for the modern Bitcoin app v2+) and
-`@ledgerhq/hw-transport-webhid` behind an Asylia-shaped adapter (init,
-derive xpub, register policy, sign PSBT) so the wallet UI never talks
-to a hardware-wallet SDK directly.
+The wallet UI never imports LedgerHQ packages directly. Every Ledger protocol
+interaction that can influence funds passes through this package, which keeps
+the audit boundary explicit and reusable outside the Vue app.
 
-## Why a separate package
+Keywords: Ledger, Bitcoin hardware wallet, WebHID, Ledger Bitcoin app v2,
+wallet policy, PSBT signing, P2WSH multisig, BIP-48, self-custody, TypeScript.
 
-Same reasoning as `@asylia/hw-trezor`: hardware-wallet code is a hard
-security boundary and must be auditable, upgradeable in isolation, and
-reusable from the future Capacitor signer.
+## Maintainer And Support
 
-## Why MIT
+`@asylia/hw-ledger` is maintained by [Asylian21](https://github.com/Asylian21).
 
-Same reasoning as `@asylia/btc-core` and `@asylia/hw-trezor`: this
-package is security-critical and the rest of the Bitcoin tooling
-ecosystem (including LedgerHQ's own libraries) is MIT.
+> **Support Asylia Bitcoin tooling**
+>
+> If this work helps your wallet, audit, integration, or research, you can
+> support ongoing development with a Bitcoin donation:
+> `bc1qrdchup8497xz0972v35q4nr0fx5egghf0z23c3`
+
+## Status
+
+`0.1.0-dev`. Environment detection, xpub export, wallet-policy registration,
+address display, live events, and PSBT signing are implemented.
+
+## Why This Package Exists
+
+Hardware-wallet code is a hard security boundary:
+
+- It opens the browser transport to a physical device.
+- It requests xpub material and fingerprints.
+- It maps a wallet policy into device-approved Ledger state.
+- It turns PSBT data into device-side prompts.
+- It receives signatures that may authorize Bitcoin spends.
+
+Keeping this code outside the wallet SPA makes the boundary auditable,
+upgradeable in isolation, and portable to a future mobile signer.
 
 ## Public API
 
-Every file below `src/` is private to this package. The stable surface
-is the set of exports re-emitted from `src/index.ts`:
+Every public export is re-emitted from `src/index.ts`.
 
-- `initLedger(options?)` — idempotent pre-flight. Validates the page
-  is served over HTTPS and that `navigator.hid` exists. Returns a
-  normalised `transport_unavailable` error otherwise.
-- `exportLedgerRoot({ derivationPath, scriptType })` — single
-  user-facing flow that opens a WebHID session, verifies the running
-  Bitcoin app version (≥ 2.1.0), reads the master fingerprint, and
-  exports the BIP-32 extended public key at the requested path.
-  Returns `{ xpub, xpubMultisig, masterFingerprint, device }`. Asylia
-  always calls `getExtendedPubkey(..., display: true)`, so the user
-  explicitly approves the public-key export on the Ledger screen even
-  when the Bitcoin app would otherwise allow a silent BIP-48 read.
-- `detectLedgerEnvironment()` — pure probe that reports WebHID
-  support, browser family (Chromium / Safari / Firefox / …), and
-  whether the user has already authorised a Ledger on this origin.
-  Safe to call on any mount; never triggers a permission prompt.
-- `buildLedgerWalletPolicy(input)` /
-  `registerLedgerWalletPolicy(input)` — deterministic multisig policy
-  preview + one-time on-device registration. Registration returns the
-  32-byte policy HMAC that Asylia persists and reuses for signing.
-- `signWshSortedMultiPsbt(input)` — opens WebHID, verifies the running
-  Bitcoin app and connected master fingerprint, signs the PSBT with the
-  registered wallet policy + HMAC, verifies returned partial signatures,
-  and merges them back into the PSBT. The wallet builds inputs with
-  `nonWitnessUtxo` from raw funding transactions so the Ledger Bitcoin
-  app can verify them without showing the unverified-inputs warning.
-- `subscribeToLedgerEvents(handler)` — live stream combining raw
-  `navigator.hid.onconnect` / `ondisconnect` beacons with synthetic
-  `app_connected` / `awaiting_button` / `finalising` /
-  `transport_error` events
-  emitted by the export / registration / signing flows.
-- `findAuthorisedLedgerDevice()` / `hasAuthorisedLedgerDevice()` —
-  silent introspection against `navigator.hid.getDevices()`.
-- `friendlyProductName(info)` — HID descriptor → marketing name
-  (`"Ledger Nano X"`, `"Ledger Stax"`, …).
+| Export | Purpose |
+| --- | --- |
+| `initLedger(options?)` | Idempotent pre-flight for secure origin and WebHID availability. |
+| `detectLedgerEnvironment()` | Pure browser capability probe. It never opens a permission prompt. |
+| `recommendationFromEnvironment()` | Maps browser/device capability into UI guidance. |
+| `exportLedgerRoot({ derivationPath, scriptType })` | Opens WebHID, verifies the Bitcoin app, reads the master fingerprint, and exports the requested BIP-32 public root. |
+| `buildLedgerWalletPolicy(input)` | Builds the deterministic Ledger multisig policy preview. |
+| `registerLedgerWalletPolicy(input)` | Registers the policy on device and returns the HMAC Asylia must persist for future signing. |
+| `displayWshSortedMultiAddress(input)` | Requests an on-device address display for a derived P2WSH multisig address. |
+| `signWshSortedMultiPsbt(input)` | Signs a PSBT with a registered policy and merges verified partial signatures back into the PSBT. |
+| `subscribeToLedgerEvents(handler)` | Streams device, app, prompt, finalization, and transport events for UI steppers and support diagnostics. |
+| `findAuthorisedLedgerDevice()`, `hasAuthorisedLedgerDevice()` | Silent `navigator.hid.getDevices()` helpers. |
+| `friendlyProductName(info)` | Converts HID descriptors into user-facing Ledger model names. |
 
-All functions return the same `AdapterResult<T>` discriminant used by
-`@asylia/hw-trezor`, so the wallet UI can render both families through
-a single `{ ok, data | error }` pattern.
+All high-level flows return `AdapterResult<T>`: `{ ok: true, data }` or
+`{ ok: false, error }`. Callers do not need to catch vendor SDK exceptions in
+UI code.
 
-## Error model
+## Ledger Signing Model
 
-Every Ledger SDK failure — APDU status words (`0x6985`, `0x6B0C`,
-`0x6A82`, …) and named errors from `@ledgerhq/errors`
-(`LockedDeviceError`, `TransportOpenUserCancelled`, …) — is mapped
-onto the `LedgerErrorCode` union:
+Ledger's modern Bitcoin app signs multisig spends through wallet policies. The
+Asylia flow is:
 
-```
-'init_failed' | 'cancelled' | 'device_disconnected' |
-'device_not_found' | 'device_in_use' | 'device_locked' |
-'device_timeout' | 'app_not_open' | 'wrong_app' | 'wrong_device' |
-'app_outdated' | 'firmware_too_old' | 'descriptor_unavailable' |
-'invalid_path' | 'transport_unavailable' | 'permission_denied' |
-'gesture_required' | 'unknown'
+1. Build the canonical `wsh(sortedmulti(...))` policy from the vault descriptor
+   data.
+2. Register that policy once on the Ledger device.
+3. Persist the returned policy HMAC in wallet metadata.
+4. Build PSBT v2 inputs with witness scripts, BIP-32 derivation records, and raw
+   funding transactions when available.
+5. Open WebHID for signing, verify the connected Ledger and Bitcoin app, sign
+   with the stored policy HMAC, verify returned partial signatures, and merge
+   them into the PSBT.
+
+The adapter requires `@asylia/btc-core` for PSBT inspection, script metadata,
+and signature verification. Bitcoin script logic does not live in this package.
+
+## Error Model
+
+Ledger SDK failures, APDU status words, transport errors, browser capability
+failures, and user cancellations are normalized into the `LedgerErrorCode`
+union:
+
+```text
+init_failed | cancelled | device_disconnected | device_not_found |
+device_in_use | device_locked | device_timeout | app_not_open |
+wrong_app | wrong_device | app_outdated | firmware_too_old |
+descriptor_unavailable | invalid_path | transport_unavailable |
+permission_denied | gesture_required | unknown
 ```
 
-Paired user-facing copy lives in `errors.ts`. The wallet UI should
-never pattern-match on vendor strings — the wizard renders the
-adapter's `message` verbatim.
+The wallet renders adapter-provided messages. It should not inspect raw LedgerHQ
+error strings.
 
-## Events
+## Events and Diagnostics
 
-`subscribeToLedgerEvents` returns an `UnsubscribeFn`. Events fire in
-one of the following shapes:
+`subscribeToLedgerEvents` returns an `UnsubscribeFn` and emits events such as:
 
-- `{ phase: 'device_connected' | 'device_disconnected', device }`
-- `{ phase: 'app_connected', appName, appVersion }`
-- `{ phase: 'awaiting_button', intent }`
-- `{ phase: 'finalising', message }`
-- `{ phase: 'transport_error', message }`
+- `device_connected` / `device_disconnected`,
+- `app_connected`,
+- `awaiting_button`,
+- `finalising`,
+- `transport_error`.
 
-Use this stream to drive a four-step stepper in the UI; the wizard in
-the wallet SPA (`apps/wallet/src/components/ledger-connect-wizard`)
-is the canonical consumer.
+The wallet's Ledger wizard uses this stream to drive step-by-step UI. Adapter
+logs use the `[hw-ledger]` prefix so support can reconstruct UI -> service ->
+adapter -> device behavior from browser console output.
 
-## Logging
+## Not in Scope
 
-Every meaningful step in the adapter prints a structured `[hw-ledger]`
-log line to the browser console. Pair these with the service layer's
-`[asylia/ledger]` lines and the wizard's `[asylia/ledger-wizard]`
-lines to reconstruct every UI → adapter → device hop during a support
-investigation.
+This package does not:
 
-## Not in scope
+- persist xpubs, fingerprints, policy HMACs, or signatures,
+- store seed phrases or private keys,
+- render UI,
+- own descriptor policy construction beyond Ledger's device policy format,
+- fetch blockchain data,
+- support non-Asylia script families.
 
-- Persistence of any device-derived material.
-- UI primitives.
-- Bitcoin script logic (lives in `@asylia/btc-core`).
+## Testing
 
-## Versioning + audit stance
+```bash
+yarn workspace @asylia/hw-ledger type-check
+yarn workspace @asylia/hw-ledger test
+```
 
-See [`SECURITY.md`](./SECURITY.md). The package is `0.1.0-dev` until
-it ships its first audited stable API. Every upstream LedgerHQ
-dependency is pinned to a specific minor version.
+## Versioning and Audit Stance
+
+The package remains `0.1.0-dev` until the first audited stable API. Upstream
+Ledger dependencies are intentionally pinned to specific minor versions. See
+[`SECURITY.md`](./SECURITY.md) for the disclosure process and scope.
 
 ## License
 
-MIT — see [`LICENSE`](./LICENSE).
+MIT - see [`LICENSE`](./LICENSE).
