@@ -64,6 +64,38 @@ describe('buildLedgerWalletPolicy', () => {
       },
     });
   });
+
+  it('keeps the policy id stable when the same cosigners arrive in another order', () => {
+    const keys = [
+      {
+        fingerprint: 'deadbeef',
+        derivationPath: "m/48'/0'/0'/2'",
+        xpub: makeXpub(1),
+      },
+      {
+        fingerprint: 'baddcafe',
+        derivationPath: "m/48h/0h/0h/2h",
+        xpub: makeXpub(2),
+      },
+      {
+        fingerprint: 'c001d00d',
+        derivationPath: "48'/0'/0'/2'",
+        xpub: makeXpub(3),
+      },
+    ];
+
+    const first = buildLedgerWalletPolicy({ requiredSignatures: 2, keys });
+    const second = buildLedgerWalletPolicy({
+      requiredSignatures: 2,
+      keys: [...keys].reverse(),
+    });
+
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    if (!first.ok || !second.ok) return;
+    expect(second.data.policyId).toBe(first.data.policyId);
+    expect(second.data.keyInfo).toEqual(first.data.keyInfo);
+  });
 });
 
 function makeXpub(seed: number): string {
