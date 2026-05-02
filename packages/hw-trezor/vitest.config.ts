@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],
+    testTimeout: 30_000,
     coverage: {
       reporter: ['text', 'lcov'],
       include: ['src/**/*.ts'],

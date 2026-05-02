@@ -1,0 +1,44 @@
+{
+  "auditId": "release-checks-vercel-hotfix-2026-05-02",
+  "date": "2026-05-02",
+  "title": "Release checks and Vercel build hotfix",
+  "target": "main",
+  "status": "passed-with-notes",
+  "branch": "release/test",
+  "baseRef": "main",
+  "headRef": "release/test",
+  "commitRange": "main...release/test",
+  "scope": [
+    "Public bitcoin-toolkit sync token permissions and workflow preservation",
+    "Wallet production gate handling for live authenticated browser flows",
+    "Vercel workspace dependency build ordering",
+    "Vercel build helper scripts"
+  ],
+  "modelReviews": [
+    {
+      "provider": "OpenAI",
+      "family": "GPT",
+      "model": "GPT-5.5",
+      "version": "GPT-5.5",
+      "role": "Hotfix security and release-control review",
+      "status": "completed"
+    }
+  ],
+  "findingsSummary": {
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0,
+    "info": 1,
+    "blockingFindings": false,
+    "unresolvedCriticalOrHigh": false
+  },
+  "reportPath": "docs/audits/reports/2026-05-02-release-checks-vercel-hotfix.md",
+  "publicReportPath": "docs/audits/public/2026-05-02-release-checks-vercel-hotfix.md",
+  "marketingPath": "apps/marketing/content/audits/2026-05-02-release-checks-vercel-hotfix.md",
+  "publicSummary": "Asylia stabilized the production release checks and Vercel deployment path after the release flow reached main.",
+  "publication": {
+    "safeForPublic": true,
+    "summary": "This report covers release operations and deployment controls only. It does not disclose secrets, private user data, descriptors, xpub sets, PSBTs, or exploit instructions."
+  }
+}

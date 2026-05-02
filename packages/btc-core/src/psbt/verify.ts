@@ -35,7 +35,7 @@
  */
 import { Buffer } from 'buffer';
 import * as ecc from '@bitcoinerlab/secp256k1';
-import { sha256 } from '@noble/hashes/sha2.js';
+import { sha256 } from '@noble/hashes/sha256';
 
 import { reverseTxidHex } from './build';
 import { inspectPsbtV2, type InspectedPsbt } from './inspect';

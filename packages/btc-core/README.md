@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Asylia/asylia.io/main/apps/wallet/resources/logo.svg" alt="Asylia" width="96" />
+</p>
+
 # @asylia/btc-core
 
 Framework-agnostic Bitcoin primitives for the Asylia self-custody platform:
@@ -26,8 +30,14 @@ self-custody.
 
 ## Status
 
-`0.1.0-dev`. The package already ships the active Asylia wallet primitives, but
-the public API can still change before the first audited stable release.
+`0.1.0`. The package ships the active Asylia wallet primitives. The public API
+can still change while the toolkit is in the `0.x` release line.
+
+## Installation
+
+```bash
+npm install @asylia/btc-core
+```
 
 ## Script Policy
 
@@ -51,7 +61,8 @@ enough to reason about carefully.
 
 ## Public API
 
-Every public export comes from `src/index.ts`. The most important surfaces are:
+Every public export is defined by the source barrel and published from the
+package root. The most important surfaces are:
 
 | Area | Exports |
 | --- | --- |

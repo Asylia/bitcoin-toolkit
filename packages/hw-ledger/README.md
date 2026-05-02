@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Asylia/asylia.io/main/apps/wallet/resources/logo.svg" alt="Asylia" width="96" />
+</p>
+
 # @asylia/hw-ledger
 
 Ledger hardware-wallet adapter for the Asylia self-custody platform. It wraps
@@ -24,8 +28,14 @@ wallet policy, PSBT signing, P2WSH multisig, BIP-48, self-custody, TypeScript.
 
 ## Status
 
-`0.1.0-dev`. Environment detection, xpub export, wallet-policy registration,
+`0.1.0`. Environment detection, xpub export, wallet-policy registration,
 address display, live events, and PSBT signing are implemented.
+
+## Installation
+
+```bash
+npm install @asylia/hw-ledger @asylia/btc-core
+```
 
 ## Why This Package Exists
 
@@ -42,7 +52,8 @@ upgradeable in isolation, and portable to a future mobile signer.
 
 ## Public API
 
-Every public export is re-emitted from `src/index.ts`.
+Every public export is defined by the source barrel and published from the
+package root.
 
 | Export | Purpose |
 | --- | --- |
@@ -131,8 +142,8 @@ yarn workspace @asylia/hw-ledger test
 
 ## Versioning and Audit Stance
 
-The package remains `0.1.0-dev` until the first audited stable API. Upstream
-Ledger dependencies are intentionally pinned to specific minor versions. See
+The package uses semver in the `0.x` release line until the first audited stable
+API. Upstream Ledger dependencies are intentionally pinned to specific minor versions. See
 [`SECURITY.md`](./SECURITY.md) for the disclosure process and scope.
 
 ## License

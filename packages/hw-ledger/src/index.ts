@@ -86,4 +86,4 @@ export type {
   SignPsbtResult,
 } from './types';
 
-export const ASYLIA_HW_LEDGER_VERSION = '0.1.0-dev' as const;
+export const ASYLIA_HW_LEDGER_VERSION = '0.1.0' as const;

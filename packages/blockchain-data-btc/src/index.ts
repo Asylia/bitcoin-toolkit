@@ -100,4 +100,4 @@ export {
   type BlockchainDataServiceConfig,
 } from './service';
 
-export const ASYLIA_BLOCKCHAIN_DATA_BTC_VERSION = '0.1.0-dev' as const;
+export const ASYLIA_BLOCKCHAIN_DATA_BTC_VERSION = '0.1.0' as const;

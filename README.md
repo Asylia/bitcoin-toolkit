@@ -28,6 +28,9 @@ Asylia Bitcoin Toolkit is maintained by [Asylian21](https://github.com/Asylian21
 The toolkit contains framework-agnostic packages used by the Asylia wallet to
 derive addresses, build and inspect PSBTs, talk to hardware wallets, fetch
 Bitcoin chain data, and share typed domain contracts across security boundaries.
+It also contains public-safe release security audit records under `audits/` so
+reviewers can connect release claims to concrete scope, model versions, findings,
+and residual risk.
 
 It intentionally does not contain:
 
@@ -47,6 +50,19 @@ It intentionally does not contain:
 | `@asylia/hw-ledger` | Ledger WebHID adapter for environment checks, xpub export, wallet-policy registration, address display, and PSBT signing. |
 | `@asylia/hw-trezor` | Trezor Connect adapter for initialization, environment checks, xpub export, address display, and PSBT signing. |
 | `@asylia/shared-types` | Shared domain contracts for vaults, signers, descriptors, derivation paths, amounts, UTXOs, PSBT proposals, and audit events. |
+
+## Installation
+
+```bash
+npm install @asylia/btc-core
+npm install @asylia/blockchain-data-btc
+npm install @asylia/hw-ledger @asylia/btc-core
+npm install @asylia/hw-trezor @asylia/btc-core
+```
+
+The first public npm release is `0.1.0` for all four published packages. The
+hardware-wallet adapters declare `@asylia/btc-core` as a peer dependency so
+wallet applications keep one shared Bitcoin primitive implementation.
 
 ## Security Model
 
@@ -84,15 +100,43 @@ yarn workspace @asylia/hw-trezor lint
 yarn workspace @asylia/hw-ledger test
 ```
 
+## Publishing
+
+The four npm packages are released from this public repository by the
+**Release Packages** workflow:
+
+1. `@asylia/btc-core`
+2. `@asylia/blockchain-data-btc`
+3. `@asylia/hw-ledger`
+4. `@asylia/hw-trezor`
+
+The private Asylia monorepo remains the source of code truth. Its sync workflow
+exports only the allowlisted package files into this repository. When the synced
+package contents change after the initial release, the export writes a patch
+Changeset so GitHub Actions can open a Version Packages PR.
+
 ## Versioning
 
-The packages currently use development versions while the Asylia wallet hardens
-its first public API. Expect breaking changes until the first audited stable
-release. Stable releases will use semantic versioning, changelog entries, and
-git tags for audit traceability.
+Changesets owns public package versions, changelogs, and npm publish decisions.
+The release workflow behaves as follows:
+
+- If a sync contains package changes and a Changeset, it opens or updates a
+  Version Packages PR.
+- Merging that Version Packages PR updates versions and changelogs, then
+  publishes only packages whose versions are not already on npm.
+- If a sync contains no package changes, no version is published.
+- The `0.x` line is still pre-stable: patch releases are compatible fixes,
+  minor releases may add or adjust public API, and major releases are reserved
+  for the first stable contract.
+
+Prefer npm Trusted Publishing for this repository. If Trusted Publishing is not
+configured, add an npm automation token as the `NPM_TOKEN` secret.
 
 ## Security
 
 Please report vulnerabilities privately to security@asylia.io. Do not open
 public GitHub issues for suspected vulnerabilities in descriptor, key,
 hardware-wallet, chain-data, or transaction-handling code.
+
+Public release audit summaries live under `audits/`. They intentionally avoid
+secrets, user data, private operational detail, and weaponized exploit steps.

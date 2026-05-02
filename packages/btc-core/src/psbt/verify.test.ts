@@ -20,7 +20,7 @@ describe('PSBT SegWit v0 signature verification', () => {
     expect(() => computeBip143SighashAll(inspected, inspected.inputs.length)).toThrow(PsbtVerifyError);
   });
 
-  it('finds the actual signer among candidate pubkeys and returns null for non-owners', () => {
+  it('critical invariant: accepts only the actual signer among candidate pubkeys', () => {
     const fixture = makeSyntheticBitcoinFixture();
     const inspected = inspectPsbtV2(fixture.oneSignaturePsbtBase64);
     const input = inspected.inputs[0]!;

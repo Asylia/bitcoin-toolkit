@@ -193,4 +193,4 @@ export type {
   WshSortedMultiAddressEntry,
 } from './types';
 
-export const ASYLIA_BTC_CORE_VERSION = '0.1.0-dev' as const;
+export const ASYLIA_BTC_CORE_VERSION = '0.1.0' as const;

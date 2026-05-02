@@ -58,4 +58,4 @@ export type {
   TrezorScriptType,
 } from './types';
 
-export const ASYLIA_HW_TREZOR_VERSION = '0.1.0-dev' as const;
+export const ASYLIA_HW_TREZOR_VERSION = '0.1.0' as const;

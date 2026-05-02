@@ -48,6 +48,54 @@ describe('selectCoinsLargestFirst', () => {
     });
   });
 
+  it('selects deterministically for equal-value UTXOs and does not mutate caller order', () => {
+    const utxos = [
+      utxo('cc', 1, 50_000),
+      utxo('aa', 0, 50_000),
+      utxo('bb', 0, 50_000),
+    ];
+
+    const result = selectCoinsLargestFirst({
+      utxos,
+      targetSats: 90_000,
+      feeRateSatsPerVByte: 1,
+    });
+
+    expect(utxos.map((entry) => `${entry.txid}:${entry.vout}`)).toEqual([
+      `${'cc'.repeat(32)}:1`,
+      `${'aa'.repeat(32)}:0`,
+      `${'bb'.repeat(32)}:0`,
+    ]);
+    expect(result).toMatchObject({
+      ok: true,
+      feeSats: 284,
+      changeSats: 9_716,
+      vbytes: 284,
+    });
+    if (result.ok) {
+      expect(result.selected.map((entry) => entry.txid)).toEqual([
+        'aa'.repeat(32),
+        'bb'.repeat(32),
+      ]);
+    }
+  });
+
+  it('uses the no-change fallback when with-change fees barely miss', () => {
+    const result = selectCoinsLargestFirst({
+      utxos: [utxo('dd', 0, 10_000)],
+      targetSats: 9_830,
+      feeRateSatsPerVByte: 1,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      selected: [utxo('dd', 0, 10_000)],
+      feeSats: 170,
+      changeSats: 0,
+      vbytes: 143,
+    });
+  });
+
   it('returns typed failure results instead of throwing', () => {
     expect(
       selectCoinsLargestFirst({
@@ -80,6 +128,12 @@ describe('maxSpendableSats', () => {
         feeRateSatsPerVByte: 1,
       }),
     ).toMatchObject({ ok: true, feeSats: 253, changeSats: 0 });
+  });
+
+  it('returns zero for empty inputs or non-positive fee rates', () => {
+    expect(maxSpendableSats({ utxos: [], feeRateSatsPerVByte: 1 })).toBe(0);
+    expect(maxSpendableSats({ utxos: [utxo('ee', 0, 10_000)], feeRateSatsPerVByte: 0 })).toBe(0);
+    expect(maxSpendableSats({ utxos: [utxo('ff', 0, 10_000)], feeRateSatsPerVByte: -1 })).toBe(0);
   });
 });
 
@@ -116,6 +170,42 @@ describe('selectCoinsLargestFirstFixedFee', () => {
       available: 10_000,
       required: 10_246,
     });
+  });
+
+  it('returns exact-spend topology without a change output', () => {
+    const result = selectCoinsLargestFirstFixedFee({
+      utxos: [utxo('ab', 0, 10_000)],
+      targetSats: 9_000,
+      feeSats: 1_000,
+      fixedVbytes: 76,
+      changeOutputVbytes: 43,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      selected: [utxo('ab', 0, 10_000)],
+      feeSats: 1_000,
+      changeSats: 0,
+      vbytes: 143,
+    });
+  });
+
+  it('rejects empty UTXOs and non-positive fixed fees with typed failures', () => {
+    expect(
+      selectCoinsLargestFirstFixedFee({
+        utxos: [],
+        targetSats: 1_000,
+        feeSats: 100,
+      }),
+    ).toEqual({ ok: false, reason: 'EMPTY_UTXOS', available: 0, required: 1_000 });
+
+    expect(
+      selectCoinsLargestFirstFixedFee({
+        utxos: [utxo('ac', 0, 10_000)],
+        targetSats: 1_000,
+        feeSats: 0,
+      }),
+    ).toEqual({ ok: false, reason: 'INSUFFICIENT_FUNDS', available: 0, required: 1_000 });
   });
 });
 

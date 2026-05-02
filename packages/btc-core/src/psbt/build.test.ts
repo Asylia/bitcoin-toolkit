@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   addPartialSignaturesToPsbt,
+  addressFromScript,
   buildWshSortedMultiPsbt,
   collectSignerFingerprints,
   computeBip143SighashAll,
@@ -81,6 +82,30 @@ describe('buildWshSortedMultiPsbt', () => {
     expect(built.totalInputSats).toBe(FUNDING_VALUE_SATS);
     expect(built.totalOutputSats).toBe(RECIPIENT_VALUE_SATS + CHANGE_VALUE_SATS);
     expect(built.feeSats).toBe(10_000);
+  });
+
+  it('critical invariant: PSBT encodes the intended outpoint, outputs, change slot, and signer paths', () => {
+    const fixture = buildFixture({ utxoCount: 1 });
+    const inspected = inspectPsbtV2(fixture.psbtBase64);
+    const input = inspected.inputs[0]!;
+    const recipient = inspected.outputs[0]!;
+    const change = inspected.outputs[1]!;
+
+    expect(input.txid).toBe(fixture.utxos[0]?.txid);
+    expect(input.vout).toBe(fixture.utxos[0]?.vout);
+    expect(input.valueSats).toBe(FUNDING_VALUE_SATS);
+    expect(addressFromScript(recipient.scriptPubKey, 'mainnet')).toBe(fixture.recipientAddress);
+    expect(addressFromScript(change.scriptPubKey, 'mainnet')).toBe(fixture.changeAddress);
+    expect(change.amountSats).toBe(CHANGE_VALUE_SATS);
+    expect(input.bip32Derivation.map((entry) => entry.path)).toEqual(
+      fixture.descriptors.map((key) => `m/${key.derivationPath}/0/0`),
+    );
+    expect(change.bip32Derivation.map((entry) => entry.path)).toEqual(
+      fixture.descriptors.map((key) => `m/${key.derivationPath}/1/0`),
+    );
+    expect(input.bip32Derivation.map((entry) => Buffer.from(entry.masterFingerprint).toString('hex'))).toEqual(
+      fixture.descriptors.map((key) => key.fingerprint),
+    );
   });
 
   it('rejects malformed or unsafe PSBT build inputs', () => {

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Asylia/asylia.io/main/apps/wallet/resources/logo.svg" alt="Asylia" width="96" />
+</p>
+
 # @asylia/shared-types
 
 Shared TypeScript domain contracts for the Asylia self-custody platform.

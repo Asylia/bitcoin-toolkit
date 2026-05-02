@@ -1,0 +1,45 @@
+{
+  "auditId": "release-audit-flow-2026-05-02",
+  "date": "2026-05-02",
+  "title": "Release, deploy, and audit flow",
+  "target": "main",
+  "status": "passed-with-notes",
+  "branch": "chore/release-audit-flow",
+  "baseRef": "main",
+  "headRef": "chore/release-audit-flow",
+  "commitRange": "main...chore/release-audit-flow",
+  "scope": [
+    "GitHub Actions production gates",
+    "release/test branch mapping",
+    "release audit manifest schema",
+    "marketing security audit publication path",
+    "public bitcoin-toolkit audit export path"
+  ],
+  "modelReviews": [
+    {
+      "provider": "OpenAI",
+      "family": "GPT",
+      "model": "GPT-5.5",
+      "version": "GPT-5.5",
+      "role": "Implementation and process review",
+      "status": "completed"
+    }
+  ],
+  "findingsSummary": {
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0,
+    "info": 1,
+    "blockingFindings": false,
+    "unresolvedCriticalOrHigh": false
+  },
+  "reportPath": "docs/audits/reports/2026-05-02-release-audit-flow.md",
+  "publicReportPath": "docs/audits/public/2026-05-02-release-audit-flow.md",
+  "marketingPath": "apps/marketing/content/audits/2026-05-02-release-audit-flow.md",
+  "publicSummary": "Asylia introduced a production release flow that requires green CI and a public-safe release security audit record before code reaches main.",
+  "publication": {
+    "safeForPublic": true,
+    "summary": "This report covers release process controls only. It does not disclose secrets, private user data, descriptors, xpub sets, PSBTs, or exploit instructions."
+  }
+}

@@ -6,6 +6,7 @@ import {
   describeBitcoinAddressType,
   parseBitcoinAddress,
 } from '../index';
+import { bip32 } from '../crypto/ecc';
 
 describe('parseBitcoinAddress', () => {
   it('classifies standard mainnet address templates', () => {
@@ -25,6 +26,12 @@ describe('parseBitcoinAddress', () => {
       hash: Buffer.alloc(32, 4),
       network: networks.bitcoin,
     }).address!;
+    const taprootNode = bip32().fromSeed(Buffer.alloc(32, 5), networks.bitcoin)
+      .derivePath("m/86'/0'/0'/0/0");
+    const p2tr = payments.p2tr({
+      internalPubkey: Buffer.from(taprootNode.publicKey.subarray(1, 33)),
+      network: networks.bitcoin,
+    }).address!;
 
     expect(parseBitcoinAddress(` ${p2pkh} `)).toEqual({
       ok: true,
@@ -41,6 +48,11 @@ describe('parseBitcoinAddress', () => {
       ok: true,
       type: 'p2wsh',
       address: p2wsh,
+    });
+    expect(parseBitcoinAddress(p2tr)).toEqual({
+      ok: true,
+      type: 'p2tr',
+      address: p2tr,
     });
   });
 
@@ -59,11 +71,34 @@ describe('parseBitcoinAddress', () => {
       code: 'invalid_format',
     });
   });
+
+  it('returns wrong_network before generic checksum errors for obvious non-mainnet addresses', () => {
+    expect(parseBitcoinAddress('mipcBbFg9gMiCh81Kj8tqqdgoZub1ZJRfn')).toMatchObject({
+      ok: false,
+      code: 'wrong_network',
+    });
+    expect(parseBitcoinAddress('2N2JD6wb56AfK4tfmM6PwdVmoYk2dCKf4Br')).toMatchObject({
+      ok: false,
+      code: 'wrong_network',
+    });
+    expect(parseBitcoinAddress('bcrt1qexample')).toMatchObject({
+      ok: false,
+      code: 'wrong_network',
+    });
+  });
+
+  it('rejects non-string inputs without throwing', () => {
+    expect(parseBitcoinAddress(null as unknown as string)).toMatchObject({
+      ok: false,
+      code: 'invalid_format',
+    });
+  });
 });
 
 describe('describeBitcoinAddressType', () => {
   it('renders user-facing labels for known output templates', () => {
     expect(describeBitcoinAddressType('p2pkh')).toBe('Legacy (P2PKH)');
     expect(describeBitcoinAddressType('p2wsh')).toBe('Native SegWit Multisig (P2WSH)');
+    expect(describeBitcoinAddressType('p2tr')).toBe('Taproot (P2TR)');
   });
 });

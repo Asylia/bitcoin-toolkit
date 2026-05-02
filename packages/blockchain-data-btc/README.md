@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Asylia/asylia.io/main/apps/wallet/resources/logo.svg" alt="Asylia" width="96" />
+</p>
+
 # @asylia/blockchain-data-btc
 
 Normalized Bitcoin chain-data and market-data SDK for the Asylia self-custody
@@ -22,6 +26,17 @@ request deduplication, TypeScript wallet SDK.
 > If this work helps your wallet, audit, integration, or research, you can
 > support ongoing development with a Bitcoin donation:
 > `bc1qrdchup8497xz0972v35q4nr0fx5egghf0z23c3`
+
+## Status
+
+`0.1.0`. The package ships the active Asylia chain-data provider stack. The
+public API can still change while the toolkit is in the `0.x` release line.
+
+## Installation
+
+```bash
+npm install @asylia/blockchain-data-btc
+```
 
 ## Why This Package Exists
 

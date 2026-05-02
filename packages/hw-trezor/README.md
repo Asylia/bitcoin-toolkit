@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Asylia/asylia.io/main/apps/wallet/resources/logo.svg" alt="Asylia" width="96" />
+</p>
+
 # @asylia/hw-trezor
 
 Trezor hardware-wallet adapter for the Asylia self-custody platform. It wraps
@@ -23,8 +27,14 @@ multisig, BIP-48, BIP-380 descriptor, xpub export, self-custody, TypeScript.
 
 ## Status
 
-`0.1.0-dev`. Initialization, environment detection, xpub export, address
+`0.1.0`. Initialization, environment detection, xpub export, address
 display, live events, and `wsh(sortedmulti(...))` PSBT signing are implemented.
+
+## Installation
+
+```bash
+npm install @asylia/hw-trezor @asylia/btc-core
+```
 
 ## Why This Package Exists
 
@@ -42,7 +52,8 @@ signer to reuse the same logic.
 
 ## Public API
 
-Every public export comes from `src/index.ts`.
+Every public export is defined by the source barrel and published from the
+package root.
 
 | Export | Purpose |
 | --- | --- |
@@ -186,7 +197,7 @@ yarn workspace @asylia/hw-trezor test
 
 ## Versioning and Audit Stance
 
-The package remains `0.1.0-dev` until the first audited stable API. See
+The package uses semver in the `0.x` release line until the first audited stable API. See
 [`SECURITY.md`](./SECURITY.md) for the disclosure process and security scope.
 
 ## License
