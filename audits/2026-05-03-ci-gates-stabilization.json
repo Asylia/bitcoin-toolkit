@@ -1,0 +1,43 @@
+{
+  "auditId": "ci-gates-stabilization-2026-05-03",
+  "date": "2026-05-03",
+  "title": "CI gates stabilization",
+  "target": "main",
+  "status": "passed-with-notes",
+  "branch": "release/test",
+  "baseRef": "main",
+  "headRef": "release/test",
+  "commitRange": "main...release/test",
+  "scope": [
+    "Wallet production GitHub Actions flow for push and pull-request events",
+    "Release-audit target detection for branch push events",
+    "Authenticated OTP E2E scheduling across release/test push and main PR runs"
+  ],
+  "modelReviews": [
+    {
+      "provider": "OpenAI",
+      "family": "GPT",
+      "model": "GPT-5.5",
+      "version": "GPT-5.5",
+      "role": "CI hotfix and release-control review",
+      "status": "completed"
+    }
+  ],
+  "findingsSummary": {
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0,
+    "info": 1,
+    "blockingFindings": false,
+    "unresolvedCriticalOrHigh": false
+  },
+  "reportPath": "docs/audits/reports/2026-05-03-ci-gates-stabilization.md",
+  "publicReportPath": "docs/audits/public/2026-05-03-ci-gates-stabilization.md",
+  "marketingPath": "apps/marketing/content/audits/2026-05-03-ci-gates-stabilization.md",
+  "publicSummary": "Asylia stabilized the wallet production CI gates after the release/test promotion reached main.",
+  "publication": {
+    "safeForPublic": true,
+    "summary": "This report covers release operations and CI controls only. It does not disclose secrets, private user data, descriptors, xpub sets, PSBTs, UTXO data, or exploit instructions."
+  }
+}
