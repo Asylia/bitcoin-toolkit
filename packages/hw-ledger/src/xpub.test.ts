@@ -143,6 +143,14 @@ describe('exportLedgerRoot', () => {
     });
   });
 
+  it('passes an explicit Bluetooth transport preference into the transport layer', async () => {
+    await exportLedgerRoot({ ...input(), transport: 'webble' });
+
+    expect(mocks.openLedgerTransport).toHaveBeenCalledWith({
+      transport: 'webble',
+    });
+  });
+
   it('keeps the legacy xpub when multisig conversion fails', async () => {
     mocks.appClient.getExtendedPubkey.mockResolvedValueOnce('xpub-not-base58');
 

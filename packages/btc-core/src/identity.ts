@@ -42,6 +42,7 @@ import {
   canonicalizeDerivationPath,
   describeNonMainnetXpub,
   detectExtendedPubkeyNetwork,
+  requireAsyliaBip48Root,
   stripMasterPrefix,
   toCanonicalXpub,
 } from './descriptor/normalize';
@@ -116,6 +117,11 @@ export function vaultIdentityKey(input: VaultIdentityInput): string {
     // with `48'/0'/0'/2'` and a freshly-imported descriptor that uses
     // `48h/0h/0h/2h` collapse onto the same identity.
     const path = canonicalizeDerivationPath(stripMasterPrefix(key.derivationPath));
+    const asyliaRoot = requireAsyliaBip48Root(
+      path,
+      `Key #${index + 1}`,
+      (message) => new VaultIdentityError(message),
+    );
     // Network check first so a testnet key surfaces a precise
     // "testnet not supported" identity error rather than collapsing
     // onto the mainnet identity space.
@@ -132,7 +138,7 @@ export function vaultIdentityKey(input: VaultIdentityInput): string {
         `Key #${index + 1}: extended public key could not be canonicalised.`,
       );
     }
-    return { fingerprint, path, xpub: canonicalXpub };
+    return { fingerprint, path: asyliaRoot, xpub: canonicalXpub };
   });
 
   // Stable, comparator-defined sort. Sorting by the canonical xpub first

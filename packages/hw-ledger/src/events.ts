@@ -23,7 +23,11 @@
  *     before the SDK call so the wizard can update its caption
  *     without waiting for a signal that will never come.
  *
- * The wallet UI does not need the raw WebHID events — it needs a
+ * Web Bluetooth does not expose equivalent global connect events; BLE
+ * disconnects are still forwarded through the transport-level listener
+ * attached during the active flow.
+ *
+ * The wallet UI does not need the raw platform events — it needs a
  * small, stable, Asylia-flavoured event vocabulary it can pattern-
  * match on. This module provides:
  *
@@ -189,7 +193,11 @@ let hidListenersInstalled = false;
 function ensureHidListenersInstalled(): void {
   if (hidListenersInstalled) return;
   if (typeof navigator === 'undefined' || !('hid' in navigator)) {
-    log.warn('cannot install hid listeners — navigator.hid missing');
+    if (typeof navigator !== 'undefined' && 'bluetooth' in navigator) {
+      log.info('hid listeners skipped — Web Bluetooth has no global connect stream');
+    } else {
+      log.warn('cannot install hid listeners — navigator.hid missing');
+    }
     return;
   }
 

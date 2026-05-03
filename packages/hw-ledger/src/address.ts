@@ -49,6 +49,7 @@ export async function displayWshSortedMultiAddress(
     policyId: input.policyId ?? null,
     chain: input.chain,
     index: input.index,
+    transport: input.transport ?? 'auto',
   });
 
   if (scriptType !== 'p2wsh') {
@@ -113,7 +114,9 @@ export async function displayWshSortedMultiAddress(
   const hmac = parsePolicyHmac(input.policyHmac);
   if (!hmac.ok) return hmac;
 
-  const transportResult = await openLedgerTransport();
+  const transportResult = await openLedgerTransport({
+    transport: input.transport ?? 'auto',
+  });
   if (!transportResult.ok) return transportResult;
   const transport = transportResult.data;
   const client = new AppClient(transport);

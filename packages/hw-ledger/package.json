@@ -2,7 +2,7 @@
   "name": "@asylia/hw-ledger",
   "version": "0.1.0-dev",
   "type": "module",
-  "description": "Auditable Ledger hardware-wallet TypeScript adapter for WebHID environment checks, xpub export, wallet-policy registration, address display, and P2WSH multisig PSBT signing.",
+  "description": "Auditable Ledger hardware-wallet TypeScript adapter for WebHID/Web Bluetooth environment checks, xpub export, wallet-policy registration, address display, and P2WSH multisig PSBT signing.",
   "license": "MIT",
   "author": "Asylia",
   "repository": {
@@ -19,6 +19,8 @@
     "ledger",
     "@ledgerhq/ledger-bitcoin",
     "webhid",
+    "web-bluetooth",
+    "ble",
     "hardware-wallet",
     "wallet-policy",
     "xpub",
@@ -72,6 +74,7 @@
   "dependencies": {
     "@ledgerhq/errors": "^6.34.0",
     "@ledgerhq/hw-transport": "^6.35.1",
+    "@ledgerhq/hw-transport-web-ble": "^6.34.1",
     "@ledgerhq/hw-transport-webhid": "^6.35.1",
     "@ledgerhq/ledger-bitcoin": "^0.3.1",
     "bs58check": "^4.0.0",

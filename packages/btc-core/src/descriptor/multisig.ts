@@ -42,6 +42,7 @@ import {
   detectExtendedPubkeyNetwork,
   isDerivationPathBody,
   isFingerprint,
+  requireAsyliaBip48Root,
   stripMasterPrefix,
   toCanonicalXpub,
 } from './normalize';
@@ -98,6 +99,11 @@ export function buildWshSortedMultiDescriptor(
         `Key #${index + 1}: derivation path "${key.derivationPath}" is malformed.`,
       );
     }
+    const asyliaRoot = requireAsyliaBip48Root(
+      path,
+      `Key #${index + 1}`,
+      (message) => new DescriptorBuildError(message),
+    );
     // Network check first so a testnet xpub surfaces a precise
     // "testnet not supported" message instead of the generic
     // "not valid base58check" fallback.
@@ -118,7 +124,7 @@ export function buildWshSortedMultiDescriptor(
         `Key #${index + 1}: extended public key could not be canonicalised.`,
       );
     }
-    return { fingerprint: fp, pathBody: path, xpub };
+    return { fingerprint: fp, pathBody: asyliaRoot, xpub };
   });
 
   // Reject duplicates. The BIP-380 identity of a key is the fingerprint

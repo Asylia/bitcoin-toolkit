@@ -1,15 +1,17 @@
+/// <reference path="./webbluetooth-types.d.ts" />
 /**
  * Pre-flight environment detection.
  *
- * Ledger's browser story is narrower than Trezor's — the only officially
- * supported path for Asylia is WebHID on a Chromium-based browser over
- * HTTPS. There is no "Bridge" to probe and no desktop companion to
- * forward prompts through. The environment detector therefore focuses
- * on three signals:
+ * Ledger's browser story is narrower than Trezor's — there is no
+ * "Bridge" to probe and no desktop companion to forward prompts
+ * through. Asylia supports the two browser-native Ledger channels:
+ * WebHID over USB and Web Bluetooth over BLE. The environment detector
+ * therefore focuses on four signals:
  *
  *   1. Is WebHID available at all? (navigator.hid)
- *   2. Which browser engine are we in? (Chromium / Firefox / Safari)
- *   3. Has the user already authorised a Ledger on this origin?
+ *   2. Is Web Bluetooth available at all? (navigator.bluetooth)
+ *   3. Which browser engine are we in? (Chromium / Firefox / Safari)
+ *   4. Has the user already authorised a Ledger on this origin?
  *
  * From those three we pre-compute the recommendation the wizard
  * renders verbatim, so the visual surface only has one place to read
@@ -19,7 +21,11 @@
  */
 
 import { log } from './log';
-import { findAuthorisedLedgerDevice } from './transport';
+import {
+  findAuthorisedLedgerBluetoothDevice,
+  findAuthorisedLedgerDevice,
+} from './transport';
+import type { LedgerTransportChannel } from './types';
 
 /**
  * Browser engine family the SDK transport story branches on. Anything
@@ -42,18 +48,26 @@ export type LedgerBrowserFamily =
 export type LedgerEnvironment = {
   /** WebHID API surface available to this page. */
   webHidAvailable: boolean;
+  /** Web Bluetooth API surface available to this page. */
+  webBluetoothAvailable: boolean;
+  /** Browser transports that can be used from a click handler. */
+  availableTransports: readonly LedgerTransportChannel[];
+  /** Transport the adapter will use if the user clicks Connect now. */
+  recommendedTransport: LedgerTransportChannel | null;
   /** Browser engine family parsed from `navigator.userAgent`. */
   browserFamily: LedgerBrowserFamily;
   /**
-   * `true` when `navigator.hid.getDevices()` returns a Ledger device
+   * `true` when either WebHID or Web Bluetooth returns a Ledger device
    * the user has previously authorised on this origin. Lets the wizard
    * skip the picker and go straight to "we know your device" copy.
    */
   previouslyAuthorised: boolean;
+  /** The already-authorised transport, when one was found. */
+  previouslyAuthorisedTransport: LedgerTransportChannel | null;
   /**
    * `true` when the page can reach a working Ledger transport without
-   * further user action (WebHID present + at least an authorised
-   * device; we do NOT assume a picker click on first visit).
+   * further user action (supported browser transport + at least an
+   * authorised device; we do NOT assume a picker click on first visit).
    *
    * The wizard still shows a "Connect device" CTA regardless — the
    * WebHID picker must be fired from a user gesture — but this flag
@@ -84,6 +98,8 @@ export type LedgerRecommendation = {
    *   at all (Safari / Firefox / non-HTTPS).
    */
   mode: 'ready_authorised' | 'ready_picker' | 'blocked_install_required';
+  /** Transport this recommendation describes, or null when blocked. */
+  transport: LedgerTransportChannel | null;
   /** Short, non-technical title for the inline coach card. */
   headline: string;
   /** One-sentence explanation of what will happen on Connect. */
@@ -102,23 +118,44 @@ export async function detectLedgerEnvironment(): Promise<LedgerEnvironment> {
   log.info('environment detection start');
 
   const webHidAvailable = detectWebHid();
+  const webBluetoothAvailable = await detectWebBluetooth();
+  const availableTransports = [
+    ...(webHidAvailable ? (['webhid'] as const) : []),
+    ...(webBluetoothAvailable ? (['webble'] as const) : []),
+  ];
   const browserFamily = detectBrowserFamily();
-  const previouslyAuthorised = webHidAvailable
+  const authorisedHid = webHidAvailable
     ? (await findAuthorisedLedgerDevice()) !== null
     : false;
+  const authorisedBle = webBluetoothAvailable
+    ? (await findAuthorisedLedgerBluetoothDevice()) !== null
+    : false;
+  const previouslyAuthorised = authorisedHid || authorisedBle;
+  const previouslyAuthorisedTransport: LedgerTransportChannel | null =
+    authorisedHid ? 'webhid' : authorisedBle ? 'webble' : null;
+  const recommendedTransport =
+    previouslyAuthorisedTransport ?? availableTransports[0] ?? null;
 
-  const canReachDevice = webHidAvailable && previouslyAuthorised;
+  const canReachDevice = previouslyAuthorised && recommendedTransport !== null;
 
   const recommendation = buildRecommendation({
     webHidAvailable,
+    webBluetoothAvailable,
+    availableTransports,
+    recommendedTransport,
     browserFamily,
     previouslyAuthorised,
+    previouslyAuthorisedTransport,
   });
 
   const env: LedgerEnvironment = {
     webHidAvailable,
+    webBluetoothAvailable,
+    availableTransports,
+    recommendedTransport,
     browserFamily,
     previouslyAuthorised,
+    previouslyAuthorisedTransport,
     canReachDevice,
     recommendation,
   };
@@ -141,6 +178,28 @@ function detectWebHid(): boolean {
   return 'hid' in (navigator as unknown as Record<string, unknown>);
 }
 
+async function detectWebBluetooth(): Promise<boolean> {
+  if (typeof navigator === 'undefined') return false;
+  if (typeof window !== 'undefined' && window.isSecureContext === false) {
+    return false;
+  }
+  if (detectPermissionsPolicyFeature('bluetooth') === false) {
+    log.warn('web bluetooth unavailable — Permissions-Policy blocks bluetooth');
+    return false;
+  }
+  const bluetooth = (navigator as unknown as { bluetooth?: Bluetooth }).bluetooth;
+  if (!bluetooth) return false;
+  if (typeof bluetooth.getAvailability !== 'function') return true;
+  try {
+    return await bluetooth.getAvailability();
+  } catch (cause) {
+    log.warn('web bluetooth availability probe failed', {
+      error: cause instanceof Error ? cause.message : String(cause),
+    });
+    return true;
+  }
+}
+
 type BrowserPermissionsPolicy = {
   allowsFeature?: (feature: string) => boolean;
 };
@@ -150,7 +209,7 @@ type BrowserDocumentWithPermissionsPolicy = {
   featurePolicy?: BrowserPermissionsPolicy;
 };
 
-function detectPermissionsPolicyFeature(feature: 'hid'): boolean | null {
+function detectPermissionsPolicyFeature(feature: 'hid' | 'bluetooth'): boolean | null {
   if (typeof document === 'undefined') return null;
   const browserDocument = document as unknown as BrowserDocumentWithPermissionsPolicy;
   const policy = browserDocument.permissionsPolicy ?? browserDocument.featurePolicy;
@@ -185,25 +244,46 @@ function detectBrowserFamily(): LedgerBrowserFamily {
  */
 function buildRecommendation(input: {
   webHidAvailable: boolean;
+  webBluetoothAvailable: boolean;
+  availableTransports: readonly LedgerTransportChannel[];
+  recommendedTransport: LedgerTransportChannel | null;
   browserFamily: LedgerBrowserFamily;
   previouslyAuthorised: boolean;
+  previouslyAuthorisedTransport: LedgerTransportChannel | null;
 }): LedgerRecommendation {
-  const { webHidAvailable, browserFamily, previouslyAuthorised } = input;
+  const {
+    webHidAvailable,
+    webBluetoothAvailable,
+    availableTransports,
+    recommendedTransport,
+    browserFamily,
+    previouslyAuthorised,
+    previouslyAuthorisedTransport,
+  } = input;
 
-  if (webHidAvailable && previouslyAuthorised) {
+  if (recommendedTransport && previouslyAuthorised) {
+    const label = transportLabel(previouslyAuthorisedTransport ?? recommendedTransport);
     return {
       mode: 'ready_authorised',
+      transport: recommendedTransport,
       headline: 'Ledger is ready to pair',
-      body: 'A Ledger is already paired with this browser. When you click Connect, Asylia will talk to it directly — no picker and no extra prompts. Open the Bitcoin app on the device first.',
+      body: `A Ledger is already paired with this browser over ${label}. When you click Connect, Asylia will talk to it directly — no picker and no extra prompts. Open the Bitcoin app on the device first.`,
       actionHint: 'Unlock the device and open the Bitcoin app.',
     };
   }
 
-  if (webHidAvailable) {
+  if (recommendedTransport) {
+    const hasBoth = availableTransports.length > 1;
+    const label = transportLabel(recommendedTransport);
     return {
       mode: 'ready_picker',
-      headline: 'A Ledger picker will open',
-      body: 'Plug in the device, unlock it, and open the Bitcoin app. Clicking Connect opens the browser-native device picker — pick the Ledger and grant access.',
+      transport: recommendedTransport,
+      headline: hasBoth
+        ? 'Choose USB or Bluetooth, then connect'
+        : 'A Ledger picker will open',
+      body: hasBoth
+        ? 'This browser can reach a Ledger over USB or Bluetooth. Choose the connection method below, unlock the device, open the Bitcoin app, then click Connect.'
+        : `Unlock the device and open the Bitcoin app. Clicking Connect opens the browser-native ${label} picker — pick the Ledger and grant access.`,
       actionHint:
         'Have the Bitcoin app open on the device before you click Connect.',
     };
@@ -212,8 +292,9 @@ function buildRecommendation(input: {
   if (browserFamily === 'safari') {
     return {
       mode: 'blocked_install_required',
+      transport: null,
       headline: 'Safari cannot talk to a Ledger',
-      body: 'Safari does not implement WebHID, which Asylia uses to reach the device. Switch to Chrome, Brave, Edge, or any other Chromium-based browser and try again.',
+      body: 'Safari does not implement the WebHID or Web Bluetooth paths Asylia uses to reach the device. Switch to Chrome, Brave, Edge, or another Chromium-based browser and try again.',
       actionHint: 'Open this page in Chrome / Brave / Edge.',
     };
   }
@@ -221,18 +302,26 @@ function buildRecommendation(input: {
   if (browserFamily === 'firefox') {
     return {
       mode: 'blocked_install_required',
+      transport: null,
       headline: 'Firefox does not support WebHID',
-      body: 'Firefox does not expose the WebHID API needed to reach a Ledger. Open this page in a Chromium-based browser (Chrome, Brave, Edge) and try again.',
+      body: 'Firefox does not expose the WebHID or Web Bluetooth APIs needed to reach a Ledger. Open this page in a Chromium-based browser (Chrome, Brave, Edge) and try again.',
       actionHint: 'Open this page in Chrome / Brave / Edge.',
     };
   }
 
   return {
     mode: 'blocked_install_required',
+    transport: null,
     headline: 'No way to reach a Ledger from this browser',
-    body: 'WebHID is not available. Make sure the page is served over HTTPS and you are using a recent Chromium-based browser — Chrome, Brave, or Edge.',
+    body: webHidAvailable || webBluetoothAvailable
+      ? 'A Ledger transport was detected, but it is blocked by the current browser policy. Make sure the page is served over HTTPS and device APIs are allowed.'
+      : 'WebHID and Web Bluetooth are not available. Make sure the page is served over HTTPS and you are using a recent Chromium-based browser — Chrome, Brave, or Edge.',
     actionHint: 'Use a Chromium-based browser over HTTPS, then click Retry.',
   };
+}
+
+function transportLabel(transport: LedgerTransportChannel): string {
+  return transport === 'webble' ? 'Bluetooth' : 'USB';
 }
 
 /**
@@ -244,12 +333,22 @@ function buildRecommendation(input: {
 export function recommendationFromEnvironment(
   env: Pick<
     LedgerEnvironment,
-    'webHidAvailable' | 'browserFamily' | 'previouslyAuthorised'
+    | 'webHidAvailable'
+    | 'webBluetoothAvailable'
+    | 'availableTransports'
+    | 'recommendedTransport'
+    | 'browserFamily'
+    | 'previouslyAuthorised'
+    | 'previouslyAuthorisedTransport'
   >,
 ): LedgerRecommendation {
   return buildRecommendation({
     webHidAvailable: env.webHidAvailable,
+    webBluetoothAvailable: env.webBluetoothAvailable,
+    availableTransports: env.availableTransports,
+    recommendedTransport: env.recommendedTransport,
     browserFamily: env.browserFamily,
     previouslyAuthorised: env.previouslyAuthorised,
+    previouslyAuthorisedTransport: env.previouslyAuthorisedTransport,
   });
 }

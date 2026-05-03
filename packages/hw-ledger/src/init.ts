@@ -9,15 +9,16 @@
  * `initTrezor()`.
  *
  * Currently the only side-effect is a runtime check that the page is
- * served in a secure context — WebHID is only exposed over HTTPS (or
- * localhost) and any call from a non-secure origin fails with an
- * obscure `SecurityError`. Detecting this early gives the wallet a
+ * served in a secure context and has at least one Ledger browser
+ * transport available. WebHID and Web Bluetooth are only exposed over
+ * HTTPS (or localhost), and calls from a non-secure origin fail with
+ * obscure `SecurityError`s. Detecting this early gives the wallet a
  * precise `transport_unavailable` error instead of an opaque one later.
  */
 
 import { asAdapterError } from './errors';
 import { log } from './log';
-import type { AdapterResult } from './types';
+import type { AdapterResult, LedgerTransportPreference } from './types';
 
 let initialized = false;
 
@@ -28,6 +29,8 @@ export type LedgerInitOptions = {
    * accepting the flag keeps call sites in the wallet symmetric.
    */
   debug?: boolean;
+  /** Browser transport channel to preflight. Defaults to `'auto'`. */
+  transport?: LedgerTransportPreference;
 };
 
 /**
@@ -44,7 +47,8 @@ export async function initLedger(
     return { ok: true, data: true };
   }
 
-  log.info('init start', { options });
+  const transport = options.transport ?? 'auto';
+  log.info('init start', { options: { ...options, transport } });
 
   // WebHID and the related device APIs only exist on secure origins.
   if (typeof window !== 'undefined' && window.isSecureContext === false) {
@@ -60,13 +64,17 @@ export async function initLedger(
     };
   }
 
-  if (typeof navigator === 'undefined' || !('hid' in navigator)) {
-    log.error('init failed: navigator.hid missing');
+  if (!hasRequestedTransport(transport)) {
+    log.error('init failed: requested transport missing', { transport });
     return {
       ok: false,
       error: asAdapterError(
         'transport_unavailable',
-        'navigator.hid unavailable — use a Chromium-based browser with WebHID support',
+        transport === 'webble'
+          ? 'navigator.bluetooth unavailable — use a browser with Web Bluetooth support'
+          : transport === 'webhid'
+            ? 'navigator.hid unavailable — use a Chromium-based browser with WebHID support'
+            : 'navigator.hid and navigator.bluetooth unavailable — use a browser with WebHID or Web Bluetooth support',
       ),
     };
   }
@@ -84,4 +92,14 @@ export async function initLedger(
  */
 export function _resetLedgerInitForTests(): void {
   initialized = false;
+}
+
+function hasRequestedTransport(transport: LedgerTransportPreference): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const browserNavigator = navigator as unknown as Record<string, unknown>;
+  const hasHid = 'hid' in browserNavigator;
+  const hasBluetooth = 'bluetooth' in browserNavigator;
+  if (transport === 'webhid') return hasHid;
+  if (transport === 'webble') return hasBluetooth;
+  return hasHid || hasBluetooth;
 }

@@ -103,11 +103,16 @@ export {
   withChecksum,
 } from './descriptor/checksum';
 export {
+  ASYLIA_BIP48_P2WSH_ROOT,
   toCanonicalXpub,
   isFingerprint,
   isDerivationPathBody,
+  isAsyliaBip48Root,
   stripMasterPrefix,
   canonicalizeDerivationPath,
+  canonicalizeAsyliaBip48Root,
+  describeNonAsyliaBip48Root,
+  requireAsyliaBip48Root,
   detectExtendedPubkeyNetwork,
   describeNonMainnetXpub,
   type ExtendedPubkeyNetwork,

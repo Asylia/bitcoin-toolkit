@@ -7,9 +7,8 @@
  *   - new failure modes can be wired in one place,
  *   - copy stays consistent across surfaces (dashboard, modal, vault flow).
  *
- * The mapping is intentionally lossless: the original status word or SDK
- * error name is preserved as `cause` for support / log lines while the
- * user-visible `message` stays short and actionable.
+ * The mapping preserves a stable adapter code for callers while the logger
+ * strips raw vendor payloads from console output.
  *
  * Ledger's failure surface is layered:
  *   1. **Transport-level** errors (`TransportOpenUserCancelled`,
@@ -129,7 +128,7 @@ const MESSAGES: Record<LedgerErrorCode, string> = {
   invalid_path:
     'The derivation path the wallet requested was rejected by the device.',
   transport_unavailable:
-    'Could not reach the Ledger. Use a Chromium-based browser with WebHID enabled and connect the device directly over USB (no passthroughs).',
+    'Could not reach the Ledger. Use a Chromium-based browser with WebHID over USB or Web Bluetooth enabled, then connect the device directly.',
   permission_denied:
     'The browser has no permission to talk to the Ledger. Grant device access when prompted and try again.',
   gesture_required:
@@ -264,6 +263,7 @@ function guessFromMessage(message: string): LedgerErrorCode | null {
   if (
     lower.includes('webusb') ||
     lower.includes('webhid') ||
+    lower.includes('bluetooth') ||
     lower.includes('transport')
   ) {
     return 'transport_unavailable';

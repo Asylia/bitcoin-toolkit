@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Asylia/asylia.io/main/apps/wallet/resources/logo.svg" alt="Asylia" width="96" />
+  <img src="../../apps/wallet/resources/logo.svg" alt="Asylia" width="96" />
 </p>
 
 # @asylia/btc-core

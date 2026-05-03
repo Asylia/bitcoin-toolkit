@@ -34,6 +34,23 @@ export type LedgerScriptType = 'p2wsh';
  */
 export type LedgerCoin = 'btc' | 'test';
 
+/**
+ * Browser transport channel used to reach a Ledger device.
+ *
+ * `webhid` is the USB/HID path used by Nano S Plus and all cabled
+ * desktop flows. `webble` is the Web Bluetooth path used by Bluetooth-
+ * capable Ledgers such as Nano X, Stax, and Flex.
+ */
+export type LedgerTransportChannel = 'webhid' | 'webble';
+
+/**
+ * Transport preference accepted by user-facing flows. `auto` preserves
+ * the existing behaviour: reuse an already-authorised device first,
+ * otherwise pick the only available browser transport or fall back to
+ * WebHID when both fresh-pairing options exist.
+ */
+export type LedgerTransportPreference = LedgerTransportChannel | 'auto';
+
 /** Input contract for `exportLedgerRoot`. */
 export type ExportRootInput = {
   /** Full BIP-32 path the device should export (e.g. `m/48'/0'/0'/2'`). */
@@ -42,6 +59,8 @@ export type ExportRootInput = {
   scriptType: LedgerScriptType;
   /** Defaults to `'btc'` (mainnet). */
   coin?: LedgerCoin;
+  /** Browser transport channel to use. Defaults to `'auto'`. */
+  transport?: LedgerTransportPreference;
 };
 
 /** One cosigner entry used to construct a Ledger wallet policy. */
@@ -65,6 +84,8 @@ export type LedgerWalletPolicyInput = {
    * onto. Registration refuses to continue if another Ledger is connected.
    */
   targetFingerprint: string;
+  /** Browser transport channel to use. Defaults to `'auto'`. */
+  transport?: LedgerTransportPreference;
 };
 
 /** Deterministic preview of the policy that will be shown on the Ledger. */
@@ -100,6 +121,8 @@ export type SignPsbtInput = {
   policyId?: string;
   /** Echo of the script type for forward-compatibility; only `'p2wsh'` today. */
   scriptType?: LedgerScriptType;
+  /** Browser transport channel to use. Defaults to `'auto'`. */
+  transport?: LedgerTransportPreference;
 };
 
 /** Inputs accepted by `displayWshSortedMultiAddress`. */
@@ -123,6 +146,8 @@ export type DisplayAddressInput = {
   expectedAddress: string;
   /** Echo of the script type for forward-compatibility; only `'p2wsh'` today. */
   scriptType?: LedgerScriptType;
+  /** Browser transport channel to use. Defaults to `'auto'`. */
+  transport?: LedgerTransportPreference;
 };
 
 /** Successful Ledger address display payload. */

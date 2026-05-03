@@ -2,7 +2,8 @@
  * `@asylia/hw-ledger` — Ledger adapter for the Asylia wallet.
  *
  * Wraps `@ledgerhq/ledger-bitcoin` (the official Bitcoin app v2+ client) and
- * `@ledgerhq/hw-transport-webhid` behind an Asylia-shaped adapter so
+ * `@ledgerhq/hw-transport-webhid` / `@ledgerhq/hw-transport-web-ble`
+ * behind an Asylia-shaped adapter so
  * the wallet SPA never imports a LedgerHQ package directly. The
  * package is the single audited boundary between the wallet code and
  * the vendor SDKs.
@@ -10,10 +11,10 @@
  * Public API surface (everything else is private to this package):
  *
  *   - `initLedger(options?)` — idempotent pre-flight (secure-origin +
- *     WebHID availability guard).
+ *     browser transport availability guard).
  *   - `exportLedgerRoot({ derivationPath, scriptType })` — single
  *     user-facing flow that returns `{ xpub, masterFingerprint, device }`
- *     after opening a WebHID session, verifying the running Bitcoin
+ *     after opening a WebHID or Web Bluetooth session, verifying the running Bitcoin
  *     app version, and reading the BIP-48 multisig root.
  *   - `buildLedgerWalletPolicy(input)` /
  *     `registerLedgerWalletPolicy(input)` — deterministic multisig
@@ -23,10 +24,10 @@
  *     to collect on-device Ledger signatures and merge them into a
  *     PSBT.
  *   - `detectLedgerEnvironment()` — pure probe that reports WebHID
- *     support, browser family, and whether the user has already
+ *     support, Web Bluetooth support, browser family, and whether the user has already
  *     authorised a Ledger on this origin.
  *   - `subscribeToLedgerEvents(handler)` — live stream combining raw
- *     `navigator.hid.onconnect/ondisconnect` events with synthetic
+ *     platform connect/disconnect events with synthetic
  *     `app_connected` / `awaiting_button` / `finalising` beacons emitted by the
  *     export flow.
  *   - Public types covering inputs, results, and the normalised error
@@ -63,9 +64,12 @@ export {
 } from './events';
 export {
   findAuthorisedLedgerDevice,
+  findAuthorisedLedgerBluetoothDevice,
   hasAuthorisedLedgerDevice,
+  hasAuthorisedLedgerBluetoothDevice,
   friendlyProductName,
   type LedgerHidInfo,
+  type LedgerTransportInfo,
 } from './transport';
 export type {
   AdapterResult,
@@ -76,6 +80,8 @@ export type {
   LedgerDeviceInfo,
   LedgerErrorCode,
   LedgerScriptType,
+  LedgerTransportChannel,
+  LedgerTransportPreference,
   LedgerWalletPolicyDetails,
   LedgerWalletPolicyInput,
   LedgerWalletPolicyKey,

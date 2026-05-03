@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ProviderRateLimitError } from '../types';
+import { BlockstreamInfoProvider } from './blockstream-info';
 import { EsploraBaseProvider } from './esplora-base';
+import { EsploraMirrorProvider } from './esplora-mirror';
 
 describe('EsploraBaseProvider', () => {
   const fetchMock = vi.fn();
@@ -34,6 +36,46 @@ describe('EsploraBaseProvider', () => {
     expect(fetchMock).toHaveBeenCalledWith('https://mempool.example/api/address/bc1qa', {
       headers: {},
     });
+  });
+
+  it('configures Blockstream Basic auth only when both credentials are present', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('825000'));
+    const provider = new BlockstreamInfoProvider({
+      clientId: 'client',
+      clientSecret: 'secret',
+    });
+
+    await expect(provider.fetchTipHeight()).resolves.toBe(825000);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://blockstream.info/api/blocks/tip/height',
+      {
+        headers: { Authorization: 'Basic Y2xpZW50OnNlY3JldA==' },
+      },
+    );
+
+    fetchMock.mockResolvedValueOnce(new Response('825001'));
+
+    await expect(
+      new BlockstreamInfoProvider({ clientId: 'client' }).fetchTipHeight(),
+    ).resolves.toBe(825001);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      'https://blockstream.info/api/blocks/tip/height',
+      { headers: {} },
+    );
+  });
+
+  it('wires generic Esplora mirrors with their configured base URL and label', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('825002'));
+    const provider = new EsploraMirrorProvider({
+      baseUrl: 'https://mempool.example/mirror///',
+      displayName: 'MIRROR_A',
+    });
+
+    await expect(provider.fetchTipHeight()).resolves.toBe(825002);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://mempool.example/mirror/blocks/tip/height',
+      { headers: {} },
+    );
   });
 
   it('maps quota responses to ProviderRateLimitError and trips throttle cooldown', async () => {

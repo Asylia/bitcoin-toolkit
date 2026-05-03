@@ -7,9 +7,8 @@
  *   - new failure modes can be wired in one place,
  *   - copy stays consistent across surfaces (dashboard, modal, vault flow).
  *
- * The mapping is intentionally lossless: the original SDK code is preserved
- * as `cause` for support / log lines while the user-visible `message` stays
- * short and actionable.
+ * The mapping preserves a stable adapter code for callers while the logger
+ * strips raw vendor payloads from console output.
  */
 
 import { log } from './log';

@@ -54,6 +54,7 @@ import {
   detectExtendedPubkeyNetwork,
   isDerivationPathBody,
   isFingerprint,
+  requireAsyliaBip48Root,
   stripMasterPrefix,
 } from '../descriptor/normalize';
 
@@ -304,6 +305,11 @@ export function parseSparrowWalletConfig(text: string): ParsedMultisigImport {
         `Sparrow config: cosigner #${index + 1} has a malformed derivation path (${pathRaw}).`,
       );
     }
+    const asyliaRoot = requireAsyliaBip48Root(
+      derivationPath,
+      `Sparrow config: cosigner #${index + 1}`,
+      (message) => new MultisigImportError(message),
+    );
 
     const xpub =
       asString(keystore.extendedPublicKey)?.trim() ??
@@ -326,7 +332,7 @@ export function parseSparrowWalletConfig(text: string): ParsedMultisigImport {
       );
     }
 
-    const identityKey = `${fingerprint}:${derivationPath}`;
+    const identityKey = `${fingerprint}:${asyliaRoot}`;
     if (seenIdentities.has(identityKey)) {
       throw new MultisigImportError(
         `Sparrow config: cosigner #${index + 1} duplicates an earlier cosigner (fingerprint=${fingerprint}, path=${derivationPath || 'm'}).`,
@@ -343,7 +349,7 @@ export function parseSparrowWalletConfig(text: string): ParsedMultisigImport {
 
     return {
       fingerprint,
-      derivationPath,
+      derivationPath: asyliaRoot,
       xpub,
       ...(name ? { name } : {}),
       ...(device ? { device } : {}),

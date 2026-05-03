@@ -39,6 +39,7 @@ import {
   detectExtendedPubkeyNetwork,
   isDerivationPathBody,
   isFingerprint,
+  requireAsyliaBip48Root,
   stripMasterPrefix,
 } from '../descriptor/normalize';
 
@@ -230,6 +231,11 @@ export function parseCaravanWalletConfig(text: string): ParsedMultisigImport {
         `Caravan config: cosigner #${index + 1} has a malformed \`bip32Path\` (${pathRaw}).`,
       );
     }
+    const asyliaRoot = requireAsyliaBip48Root(
+      derivationPath,
+      `Caravan config: cosigner #${index + 1}`,
+      (message) => new MultisigImportError(message),
+    );
 
     const xpub = asString(key.xpub)?.trim();
     if (!xpub) {
@@ -256,7 +262,7 @@ export function parseCaravanWalletConfig(text: string): ParsedMultisigImport {
     // builder also rejects duplicates further downstream, but at
     // that point the error string mentions "vault" which can confuse
     // an operator looking at a Caravan import dialog.
-    const identityKey = `${fingerprint}:${derivationPath}`;
+    const identityKey = `${fingerprint}:${asyliaRoot}`;
     if (seenIdentities.has(identityKey)) {
       throw new MultisigImportError(
         `Caravan config: cosigner #${index + 1} duplicates an earlier cosigner (fingerprint=${fingerprint}, path=${derivationPath || 'm'}).`,
@@ -268,7 +274,7 @@ export function parseCaravanWalletConfig(text: string): ParsedMultisigImport {
     const device = deviceFromMethod(asString(key.method));
     return {
       fingerprint,
-      derivationPath,
+      derivationPath: asyliaRoot,
       xpub,
       ...(name ? { name } : {}),
       ...(device ? { device } : {}),

@@ -59,6 +59,7 @@ __metadata:
     "@asylia/btc-core": "npm:^0.0.0-dev"
     "@ledgerhq/errors": "npm:^6.34.0"
     "@ledgerhq/hw-transport": "npm:^6.35.1"
+    "@ledgerhq/hw-transport-web-ble": "npm:^6.34.1"
     "@ledgerhq/hw-transport-webhid": "npm:^6.35.1"
     "@ledgerhq/ledger-bitcoin": "npm:^0.3.1"
     "@vitest/coverage-v8": "npm:^4.1.5"
@@ -996,6 +997,19 @@ __metadata:
   version: 6.34.0
   resolution: "@ledgerhq/errors@npm:6.34.0"
   checksum: 10c0/b02719a6dfdaf3dcbd2363f4f8d8450c1f5db9fc2319bed22dc03566b4aab5cdb88715b429282cd4492bd10247fb34862c3b318a8c641b4f791867d35e477ce7
+  languageName: node
+  linkType: hard
+
+"@ledgerhq/hw-transport-web-ble@npm:^6.34.1":
+  version: 6.34.1
+  resolution: "@ledgerhq/hw-transport-web-ble@npm:6.34.1"
+  dependencies:
+    "@ledgerhq/devices": "npm:8.14.1"
+    "@ledgerhq/errors": "npm:^6.34.0"
+    "@ledgerhq/hw-transport": "npm:6.35.1"
+    "@ledgerhq/logs": "npm:^6.17.0"
+    rxjs: "npm:7.8.2"
+  checksum: 10c0/8edbd367c4b251c19a647e6aa479a3b66c98b477e53fd3f47d62cddb8ffdb99c8d5939555324691871acfeb6c0315491adb2555187b7c86d06a820cdcd79f199
   languageName: node
   linkType: hard
 
@@ -2487,44 +2501,44 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@turbo/darwin-64@npm:2.9.7":
-  version: 2.9.7
-  resolution: "@turbo/darwin-64@npm:2.9.7"
+"@turbo/darwin-64@npm:2.9.8":
+  version: 2.9.8
+  resolution: "@turbo/darwin-64@npm:2.9.8"
   conditions: os=darwin & cpu=x64
   languageName: node
   linkType: hard
 
-"@turbo/darwin-arm64@npm:2.9.7":
-  version: 2.9.7
-  resolution: "@turbo/darwin-arm64@npm:2.9.7"
+"@turbo/darwin-arm64@npm:2.9.8":
+  version: 2.9.8
+  resolution: "@turbo/darwin-arm64@npm:2.9.8"
   conditions: os=darwin & cpu=arm64
   languageName: node
   linkType: hard
 
-"@turbo/linux-64@npm:2.9.7":
-  version: 2.9.7
-  resolution: "@turbo/linux-64@npm:2.9.7"
+"@turbo/linux-64@npm:2.9.8":
+  version: 2.9.8
+  resolution: "@turbo/linux-64@npm:2.9.8"
   conditions: os=linux & cpu=x64
   languageName: node
   linkType: hard
 
-"@turbo/linux-arm64@npm:2.9.7":
-  version: 2.9.7
-  resolution: "@turbo/linux-arm64@npm:2.9.7"
+"@turbo/linux-arm64@npm:2.9.8":
+  version: 2.9.8
+  resolution: "@turbo/linux-arm64@npm:2.9.8"
   conditions: os=linux & cpu=arm64
   languageName: node
   linkType: hard
 
-"@turbo/windows-64@npm:2.9.7":
-  version: 2.9.7
-  resolution: "@turbo/windows-64@npm:2.9.7"
+"@turbo/windows-64@npm:2.9.8":
+  version: 2.9.8
+  resolution: "@turbo/windows-64@npm:2.9.8"
   conditions: os=win32 & cpu=x64
   languageName: node
   linkType: hard
 
-"@turbo/windows-arm64@npm:2.9.7":
-  version: 2.9.7
-  resolution: "@turbo/windows-arm64@npm:2.9.7"
+"@turbo/windows-arm64@npm:2.9.8":
+  version: 2.9.8
+  resolution: "@turbo/windows-arm64@npm:2.9.8"
   conditions: os=win32 & cpu=arm64
   languageName: node
   linkType: hard
@@ -6551,15 +6565,15 @@ __metadata:
   linkType: hard
 
 "turbo@npm:^2.9.6":
-  version: 2.9.7
-  resolution: "turbo@npm:2.9.7"
+  version: 2.9.8
+  resolution: "turbo@npm:2.9.8"
   dependencies:
-    "@turbo/darwin-64": "npm:2.9.7"
-    "@turbo/darwin-arm64": "npm:2.9.7"
-    "@turbo/linux-64": "npm:2.9.7"
-    "@turbo/linux-arm64": "npm:2.9.7"
-    "@turbo/windows-64": "npm:2.9.7"
-    "@turbo/windows-arm64": "npm:2.9.7"
+    "@turbo/darwin-64": "npm:2.9.8"
+    "@turbo/darwin-arm64": "npm:2.9.8"
+    "@turbo/linux-64": "npm:2.9.8"
+    "@turbo/linux-arm64": "npm:2.9.8"
+    "@turbo/windows-64": "npm:2.9.8"
+    "@turbo/windows-arm64": "npm:2.9.8"
   dependenciesMeta:
     "@turbo/darwin-64":
       optional: true
@@ -6575,7 +6589,7 @@ __metadata:
       optional: true
   bin:
     turbo: bin/turbo
-  checksum: 10c0/5fa010810ce251279dac83db02e60ebd8014cf8e74e69a6c09751ae28aef0fdb95aa09b059ce8c987a1746dd5b04bb3002bd7fdcb6d0016d8690f079fec43921
+  checksum: 10c0/deed2c7916125319cdbebf02f533d292871f805e5cf207bdfb4ae90554ceeb289452951c40f872fa1dbeb61cdd9bb5cf66c4c061ac43b7b48f81105f150d867c
   languageName: node
   linkType: hard
 

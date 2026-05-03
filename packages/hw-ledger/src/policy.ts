@@ -84,12 +84,15 @@ export async function registerLedgerWalletPolicy(
     requiredSignatures: input.requiredSignatures,
     totalKeys: input.keys.length,
     targetFingerprint: input.targetFingerprint,
+    transport: input.transport ?? 'auto',
   });
 
   const built = buildLedgerWalletPolicyForDevice(input);
   if (!built.ok) return built;
 
-  const transportResult = await openLedgerTransport();
+  const transportResult = await openLedgerTransport({
+    transport: input.transport ?? 'auto',
+  });
   if (!transportResult.ok) {
     log.error('registerLedgerWalletPolicy: transport open failed', {
       error: transportResult.error,

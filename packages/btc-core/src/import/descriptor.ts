@@ -43,6 +43,7 @@ import {
   detectExtendedPubkeyNetwork,
   isDerivationPathBody,
   isFingerprint,
+  requireAsyliaBip48Root,
 } from '../descriptor/normalize';
 
 import { MultisigImportError } from './types';
@@ -172,6 +173,11 @@ function parseKeyOrigin(
       `Descriptor: cosigner #${index + 1} derivation path "${pathBody}" is malformed.`,
     );
   }
+  const asyliaRoot = requireAsyliaBip48Root(
+    derivationPath,
+    `Descriptor: cosigner #${index + 1}`,
+    (message) => new MultisigImportError(message),
+  );
 
   const xpub = (xpubRaw ?? '').trim();
   // Use the network-aware detector so a tpub / vpub surfaces a
@@ -199,7 +205,7 @@ function parseKeyOrigin(
   }
 
   return {
-    key: { fingerprint, derivationPath, xpub },
+    key: { fingerprint, derivationPath: asyliaRoot, xpub },
     suffix: parsedSuffix,
   };
 }

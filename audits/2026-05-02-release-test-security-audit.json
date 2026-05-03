@@ -1,0 +1,77 @@
+{
+  "auditId": "release-test-security-audit-2026-05-02",
+  "date": "2026-05-02",
+  "title": "Release test security audit",
+  "target": "main",
+  "status": "passed",
+  "branch": "release/test",
+  "baseRef": "main",
+  "headRef": "release/test",
+  "commitRange": "main...release/test",
+  "scope": [
+    "Current release/test diff against main",
+    "Bitcoin descriptor, PSBT, hardware-wallet, and chain-data packages",
+    "Wallet auth, vault, proposal, signing, broadcast, logging, and telemetry boundaries",
+    "Supabase migrations, RLS policies, Edge Functions, CORS, and operational logging helpers",
+    "GitHub Actions, release audit tooling, production config verification, Vercel build paths, and public OSS export controls"
+  ],
+  "modelReviews": [
+    {
+      "provider": "OpenAI",
+      "family": "GPT",
+      "model": "GPT-5.5",
+      "version": "GPT-5.5",
+      "role": "Parent audit synthesis, local verification, and report authoring",
+      "status": "completed"
+    },
+    {
+      "provider": "Cursor",
+      "family": "Composer",
+      "model": "Cursor Composer",
+      "version": "Composer, exact internal model/version not exposed",
+      "role": "Bitcoin package review",
+      "status": "completed"
+    },
+    {
+      "provider": "Cursor",
+      "family": "Composer",
+      "model": "Cursor Composer",
+      "version": "Composer, exact internal model/version not exposed",
+      "role": "Wallet app review",
+      "status": "completed"
+    },
+    {
+      "provider": "Cursor",
+      "family": "Composer",
+      "model": "Cursor Composer",
+      "version": "Composer, exact internal model/version not exposed",
+      "role": "Supabase boundary review",
+      "status": "completed"
+    },
+    {
+      "provider": "Cursor",
+      "family": "Composer",
+      "model": "Cursor Composer",
+      "version": "Composer, exact internal model/version not exposed",
+      "role": "Release gate and deployment review",
+      "status": "completed"
+    }
+  ],
+  "findingsSummary": {
+    "critical": 0,
+    "high": 2,
+    "medium": 8,
+    "low": 10,
+    "info": 9,
+    "blockingFindings": false,
+    "unresolvedCriticalOrHigh": false
+  },
+  "reportPath": "docs/audits/reports/2026-05-02-release-test-security-audit.md",
+  "publicReportPath": "docs/audits/public/2026-05-02-release-test-security-audit.md",
+  "marketingPath": "apps/marketing/content/audits/2026-05-02-release-test-security-audit.md",
+  "publicSummary": "Asylia reviewed the release/test promotion candidate with a wider wallet, Supabase, package, release, and publication audit. Follow-up hardening centralises BIP-48 enforcement, removes hardware-wallet vendor payloads from console logs, and records broadcast state server-side.",
+  "publication": {
+    "safeForPublic": true,
+    "summary": "This report is public-safe. It does not disclose secrets, private user data, descriptors, xpub sets, PSBTs, UTXO data, raw transactions, or exploit instructions."
+  }
+}

@@ -21,11 +21,28 @@ describe('initLedger', () => {
     });
   });
 
-  it('requires navigator.hid in supported browser contexts', async () => {
+  it('requires at least one browser Ledger transport in supported browser contexts', async () => {
     vi.stubGlobal('window', { isSecureContext: true });
     vi.stubGlobal('navigator', {});
 
     await expect(initLedger()).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'transport_unavailable' },
+    });
+  });
+
+  it('accepts pure Web Bluetooth contexts', async () => {
+    vi.stubGlobal('window', { isSecureContext: true });
+    vi.stubGlobal('navigator', { bluetooth: {} });
+
+    await expect(initLedger({ transport: 'webble' })).resolves.toEqual({ ok: true, data: true });
+  });
+
+  it('blocks explicit transport requests when that channel is unavailable', async () => {
+    vi.stubGlobal('window', { isSecureContext: true });
+    vi.stubGlobal('navigator', { bluetooth: {} });
+
+    await expect(initLedger({ transport: 'webhid' })).resolves.toMatchObject({
       ok: false,
       error: { code: 'transport_unavailable' },
     });

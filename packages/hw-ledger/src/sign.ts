@@ -52,6 +52,7 @@ export async function signWshSortedMultiPsbt(
     requiredSignatures: input.vault.requiredSignatures,
     psbtLengthChars: input.psbtBase64.length,
     policyId: input.policyId ?? null,
+    transport: input.transport ?? 'auto',
   });
 
   if (scriptType !== 'p2wsh') {
@@ -119,7 +120,9 @@ export async function signWshSortedMultiPsbt(
     };
   }
 
-  const transportResult = await openLedgerTransport();
+  const transportResult = await openLedgerTransport({
+    transport: input.transport ?? 'auto',
+  });
   if (!transportResult.ok) return transportResult;
   const transport = transportResult.data;
   const client = new AppClient(transport);

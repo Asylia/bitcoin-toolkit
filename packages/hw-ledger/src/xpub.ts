@@ -62,6 +62,7 @@ export async function exportLedgerRoot(
     derivationPath: input.derivationPath,
     scriptType: input.scriptType,
     coin: input.coin ?? 'btc',
+    transport: input.transport ?? 'auto',
   });
 
   if (!isPlausibleBip32Path(input.derivationPath)) {
@@ -71,7 +72,9 @@ export async function exportLedgerRoot(
     };
   }
 
-  const transportResult = await openLedgerTransport();
+  const transportResult = await openLedgerTransport({
+    transport: input.transport ?? 'auto',
+  });
   if (!transportResult.ok) {
     log.error('exportLedgerRoot: transport open failed', {
       error: transportResult.error,

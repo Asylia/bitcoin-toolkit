@@ -24,6 +24,9 @@ import bs58check from 'bs58check';
 /** SLIP-132 version-byte map for the BIP-32 mainnet `xpub` prefix. */
 const XPUB_MAINNET_VERSION = new Uint8Array([0x04, 0x88, 0xb2, 0x1e]);
 
+/** Asylia's only supported BIP-48 account root: mainnet native-SegWit multisig. */
+export const ASYLIA_BIP48_P2WSH_ROOT = "48'/0'/0'/2'" as const;
+
 /**
  * SLIP-132 mainnet extended public-key version bytes.
  *
@@ -236,6 +239,42 @@ export function stripMasterPrefix(derivationPath: string): string {
  */
 export function canonicalizeDerivationPath(path: string): string {
   return path.replace(/h/g, "'");
+}
+
+/** Return the canonical Asylia BIP-48 root body, or `null` when it differs. */
+export function canonicalizeAsyliaBip48Root(path: string): typeof ASYLIA_BIP48_P2WSH_ROOT | null {
+  const canonical = canonicalizeDerivationPath(stripMasterPrefix(path).trim());
+  return canonical === ASYLIA_BIP48_P2WSH_ROOT ? ASYLIA_BIP48_P2WSH_ROOT : null;
+}
+
+/** Validate that a path is exactly Asylia's mainnet BIP-48 P2WSH multisig root. */
+export function isAsyliaBip48Root(path: string): boolean {
+  return canonicalizeAsyliaBip48Root(path) !== null;
+}
+
+/** Render a consistent error for paths outside Asylia's supported account root. */
+export function describeNonAsyliaBip48Root(label: string, path: string): string {
+  const rendered = path.trim().length > 0 ? path : '(empty)';
+  return `${label}: derivation path must be m/${ASYLIA_BIP48_P2WSH_ROOT} for Bitcoin mainnet native-SegWit multisig (got "${rendered}").`;
+}
+
+/**
+ * Strict Asylia account-root guard shared by descriptor builders,
+ * identity keys, and every import parser.
+ *
+ * Empty key-origin paths are rejected here: Asylia vault cosigners
+ * must always be account-level BIP-48 mainnet native-SegWit multisig
+ * roots, never bare master/root xpub origins.
+ */
+export function requireAsyliaBip48Root<ErrorType extends Error = Error>(
+  path: string,
+  label: string,
+  makeError?: (message: string) => ErrorType,
+): typeof ASYLIA_BIP48_P2WSH_ROOT {
+  const asyliaRoot = canonicalizeAsyliaBip48Root(path);
+  if (asyliaRoot !== null) return asyliaRoot;
+  const message = describeNonAsyliaBip48Root(label, path);
+  throw makeError ? makeError(message) : new Error(message);
 }
 
 /** Validate a master fingerprint as 8 lowercase hex characters. */

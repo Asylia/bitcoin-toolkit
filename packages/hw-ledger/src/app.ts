@@ -11,8 +11,7 @@ import type { AppClient } from '@ledgerhq/ledger-bitcoin';
 import { asAdapterError, fromLedgerError } from './errors';
 import { log } from './log';
 import {
-  friendlyProductName,
-  transportHidInfo,
+  transportDeviceInfo,
   type LedgerTransport,
 } from './transport';
 import type { AdapterResult, LedgerDeviceInfo } from './types';
@@ -87,10 +86,10 @@ export function buildDeviceInfo(input: {
   appName: string;
   appVersion: string;
 }): LedgerDeviceInfo {
-  const hid = transportHidInfo(input.transport);
+  const descriptor = transportDeviceInfo(input.transport);
   return {
-    model: friendlyProductName(hid),
-    productId: hid.productId,
+    model: descriptor.model,
+    productId: descriptor.productId,
     appName: input.appName,
     appVersion: input.appVersion,
   };

@@ -1,45 +1,56 @@
 /// <reference path="./webhid-types.d.ts" />
+/// <reference path="./webbluetooth-types.d.ts" />
 /**
- * WebHID transport manager.
+ * Ledger browser transport manager.
  *
- * Ledger devices expose themselves to the browser as HID peripherals.
- * The modern, supported path is `@ledgerhq/hw-transport-webhid` —
- * WebUSB works too but Ledger itself has deprecated it for the Bitcoin
- * app v2+, so Asylia only wires up WebHID.
+ * Ledger devices can expose themselves to the browser through two
+ * official channels:
+ *
+ *   - WebHID over USB (`@ledgerhq/hw-transport-webhid`)
+ *   - Web Bluetooth / BLE (`@ledgerhq/hw-transport-web-ble`)
+ *
+ * WebUSB works in older Ledger stacks but Ledger itself has deprecated
+ * it for the Bitcoin app v2+, so Asylia intentionally wires only HID
+ * and BLE.
  *
  * What this module owns:
  *
- *   - Opening a WebHID transport against a previously-authorised Ledger
- *     when the user returns to the app without having to re-prompt.
- *   - Triggering the permission picker (`navigator.hid.requestDevice`)
- *     on a user gesture when no authorised device is visible yet.
+ *   - Opening a transport against a previously-authorised Ledger when
+ *     the user returns to the app without having to re-prompt.
+ *   - Triggering the browser permission picker on a user gesture when
+ *     no authorised device is visible yet.
  *   - Closing the active transport (required — leaving a transport
- *     open blocks any future call because WebHID locks the device
- *     handle exclusively).
+ *     open blocks future calls because the device handle is exclusive).
  *   - Bubbling up a single, normalised `LedgerAdapterError` on any
  *     failure, so callers never see raw SDK exceptions.
  *
  * Design notes:
  *
- * - WebHID requires a **user gesture** (`click` handler) to pop the
- *   picker. The wizard calls into this module from inside a click
- *   handler; there is no try-now-ask-later workaround.
+ * - WebHID and Web Bluetooth both require a **user gesture** (`click`
+ *   handler) to pop the picker on first pairing. The wizard calls into
+ *   this module from inside a click handler; there is no
+ *   try-now-ask-later workaround.
  * - We deliberately open and close a fresh transport for every flow
  *   instead of caching one across calls. The Ledger WebHID session is
  *   exclusive; keeping it open past the current modal starves other
  *   Ledger-aware pages (Ledger Live, Sparrow, …) until the user
  *   unplugs the device.
- * - The HID-level device descriptor is mirrored into a small, stable
- *   `LedgerHidInfo` shape so the rest of the package does not depend
- *   on the browser `HIDDevice` interface.
+ * - The browser-level descriptor is mirrored into a small, stable
+ *   shape so the rest of the package does not depend on browser
+ *   experimental interfaces.
  */
 
 import TransportWebHID from '@ledgerhq/hw-transport-webhid';
+import TransportWebBLE from '@ledgerhq/hw-transport-web-ble';
 import type Transport from '@ledgerhq/hw-transport';
 
 import { asAdapterError, fromLedgerError } from './errors';
 import { log } from './log';
-import type { AdapterResult } from './types';
+import type {
+  AdapterResult,
+  LedgerTransportChannel,
+  LedgerTransportPreference,
+} from './types';
 
 /**
  * Minimal HID descriptor fields Asylia cares about. Pulled from the
@@ -50,6 +61,19 @@ export type LedgerHidInfo = {
   productName: string | null;
   vendorId: number | null;
   productId: number | null;
+};
+
+export type LedgerTransportOpenOptions = {
+  /**
+   * Transport channel requested by the caller. `auto` keeps the current
+   * best-effort behaviour and is the default for existing call sites.
+   */
+  transport?: LedgerTransportPreference;
+};
+
+export type LedgerTransportInfo = LedgerHidInfo & {
+  channel: LedgerTransportChannel | null;
+  model: string;
 };
 
 /**
@@ -123,6 +147,37 @@ export async function hasAuthorisedLedgerDevice(): Promise<boolean> {
 }
 
 /**
+ * Probe `navigator.bluetooth.getDevices()` for a previously-authorised
+ * Bluetooth Ledger. Chrome exposes this without a picker when the
+ * origin already has a grant; browsers that do not implement it simply
+ * return `null` and can still pair through the BLE picker later.
+ */
+export async function findAuthorisedLedgerBluetoothDevice(): Promise<BluetoothDevice | null> {
+  const bluetooth = getBluetoothApi();
+  if (typeof bluetooth?.getDevices !== 'function') return null;
+  try {
+    const devices = await bluetooth.getDevices();
+    return devices.find(isLikelyLedgerBluetoothDevice) ?? null;
+  } catch (cause) {
+    if (isBluetoothPermissionsPolicyError(cause)) {
+      log.error('navigator.bluetooth.getDevices blocked by Permissions-Policy', {
+        error: cause instanceof Error ? cause.message : String(cause),
+      });
+      return null;
+    }
+    log.warn('navigator.bluetooth.getDevices threw', {
+      error: cause instanceof Error ? cause.message : String(cause),
+    });
+    return null;
+  }
+}
+
+/** Boolean convenience around {@link findAuthorisedLedgerBluetoothDevice}. */
+export async function hasAuthorisedLedgerBluetoothDevice(): Promise<boolean> {
+  return (await findAuthorisedLedgerBluetoothDevice()) !== null;
+}
+
+/**
  * Open a WebHID transport. On the happy path returns a fresh transport
  * pointed at a Ledger; on failure returns a normalised adapter error.
  *
@@ -133,10 +188,57 @@ export async function hasAuthorisedLedgerDevice(): Promise<boolean> {
  * When a previously-authorised device is already visible, the function
  * reuses it and no picker pops — returning a transport transparently.
  */
-export async function openLedgerTransport(): Promise<
+export async function openLedgerTransport(
+  options: LedgerTransportOpenOptions = {},
+): Promise<
   AdapterResult<LedgerTransport>
 > {
-  if (typeof navigator === 'undefined' || !('hid' in navigator)) {
+  const requested = options.transport ?? 'auto';
+  log.info('transport open requested', { requested });
+
+  if (requested === 'webhid') {
+    return openLedgerHidTransport();
+  }
+
+  if (requested === 'webble') {
+    return openLedgerBluetoothTransport();
+  }
+
+  const hidDevice = await findAuthorisedLedgerDevice();
+  if (hidDevice) {
+    return openLedgerHidTransport();
+  }
+
+  const bleDevice = await findAuthorisedLedgerBluetoothDevice();
+  if (bleDevice) {
+    return openLedgerBluetoothTransport({ device: bleDevice });
+  }
+
+  const hidAvailable = isWebHidApiAvailable();
+  const bleAvailable = isWebBluetoothApiAvailable();
+
+  if (hidAvailable) {
+    return openLedgerHidTransport();
+  }
+
+  if (bleAvailable) {
+    return openLedgerBluetoothTransport();
+  }
+
+  log.error('no ledger browser transport available');
+  return {
+    ok: false,
+    error: asAdapterError(
+      'transport_unavailable',
+      'navigator.hid and navigator.bluetooth unavailable (unsupported browser / insecure context)',
+    ),
+  };
+}
+
+async function openLedgerHidTransport(): Promise<
+  AdapterResult<LedgerTransport>
+> {
+  if (!isWebHidApiAvailable()) {
     log.error('webhid unavailable — navigator.hid not present');
     return {
       ok: false,
@@ -203,6 +305,44 @@ export async function openLedgerTransport(): Promise<
   }
 }
 
+async function openLedgerBluetoothTransport(input: {
+  device?: BluetoothDevice;
+} = {}): Promise<AdapterResult<LedgerTransport>> {
+  if (!isWebBluetoothApiAvailable()) {
+    log.error('web bluetooth unavailable — navigator.bluetooth not present');
+    return {
+      ok: false,
+      error: asAdapterError(
+        'transport_unavailable',
+        'navigator.bluetooth unavailable (unsupported browser / insecure context)',
+      ),
+    };
+  }
+
+  try {
+    const device = input.device ?? (await requestLedgerBluetoothDevice());
+    const transport = await TransportWebBLE.open(device);
+    log.info('webble transport opened', {
+      descriptor: describeBluetoothDevice(device),
+    });
+    return { ok: true, data: transport };
+  } catch (cause) {
+    log.error('webble open threw', {
+      error: cause instanceof Error ? cause.message : String(cause),
+    });
+    if (isBluetoothPermissionsPolicyError(cause)) {
+      return {
+        ok: false,
+        error: asAdapterError(
+          'permission_denied',
+          'Permissions-Policy blocks Web Bluetooth for this document',
+        ),
+      };
+    }
+    return { ok: false, error: fromLedgerError(cause, 'transport_unavailable') };
+  }
+}
+
 /**
  * Close a transport handle, swallowing secondary errors. Safe to call
  * from a `finally` block even if the open itself failed — the
@@ -214,9 +354,11 @@ export async function closeLedgerTransport(
   if (!transport) return;
   try {
     await transport.close();
-    log.info('webhid transport closed');
+    log.info('ledger transport closed', {
+      channel: transportChannel(transport),
+    });
   } catch (cause) {
-    log.warn('webhid close threw — swallowing', {
+    log.warn('ledger transport close threw — swallowing', {
       error: cause instanceof Error ? cause.message : String(cause),
     });
   }
@@ -229,6 +371,28 @@ export function transportHidInfo(transport: LedgerTransport): LedgerHidInfo {
   const maybeWithDevice = transport as unknown as { device?: HIDDevice };
   const device = maybeWithDevice.device ?? null;
   return describeDevice(device);
+}
+
+/** Browser-agnostic transport descriptor used for user-facing device metadata. */
+export function transportDeviceInfo(transport: LedgerTransport): LedgerTransportInfo {
+  const channel = transportChannel(transport);
+  if (channel === 'webble') {
+    const info = describeBluetoothTransport(transport);
+    return {
+      productName: info.productName,
+      vendorId: null,
+      productId: null,
+      channel,
+      model: info.productName ?? 'Ledger',
+    };
+  }
+
+  const hid = transportHidInfo(transport);
+  return {
+    ...hid,
+    channel,
+    model: friendlyProductName(hid),
+  };
 }
 
 /**
@@ -263,10 +427,111 @@ function describeDevice(device: HIDDevice | null): LedgerHidInfo {
   };
 }
 
+function describeBluetoothDevice(device: BluetoothDevice | null): {
+  id: string | null;
+  name: string | null;
+} {
+  if (!device) return { id: null, name: null };
+  return {
+    id: device.id ?? null,
+    name: device.name ?? null,
+  };
+}
+
+function describeBluetoothTransport(transport: LedgerTransport): {
+  productName: string | null;
+} {
+  const maybeBle = transport as unknown as {
+    device?: { name?: string | null };
+    deviceModel?: { productName?: string | null };
+  };
+  return {
+    productName:
+      maybeBle.deviceModel?.productName ??
+      maybeBle.device?.name ??
+      null,
+  };
+}
+
+function transportChannel(transport: LedgerTransport): LedgerTransportChannel | null {
+  const maybeTransport = transport as unknown as {
+    device?: unknown;
+    deviceModel?: unknown;
+  };
+  if (maybeTransport.deviceModel) return 'webble';
+  if (maybeTransport.device) return 'webhid';
+  return null;
+}
+
+function getBluetoothApi(): Bluetooth | null {
+  if (typeof navigator === 'undefined') return null;
+  return navigator.bluetooth ?? null;
+}
+
+function isWebHidApiAvailable(): boolean {
+  return typeof navigator !== 'undefined' && 'hid' in navigator;
+}
+
+function isWebBluetoothApiAvailable(): boolean {
+  return getBluetoothApi() !== null;
+}
+
+async function requestLedgerBluetoothDevice(): Promise<BluetoothDevice> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let subscription: { unsubscribe: () => void } | null = null;
+    const settle = (
+      callback: () => void,
+    ): void => {
+      if (settled) return;
+      settled = true;
+      try {
+        subscription?.unsubscribe();
+      } catch {
+        // Best-effort cleanup only; the SDK listener is one-shot.
+      }
+      callback();
+    };
+
+    try {
+      subscription = TransportWebBLE.listen({
+        next: (event: { type?: string; descriptor?: BluetoothDevice }) => {
+          if (event.type !== 'add' || !event.descriptor) return;
+          settle(() => resolve(event.descriptor as BluetoothDevice));
+        },
+        error: (cause: unknown) => {
+          settle(() => reject(cause));
+        },
+        complete: () => {
+          settle(() => reject(new Error('No Ledger Bluetooth device selected')));
+        },
+      });
+    } catch (cause) {
+      settle(() => reject(cause));
+    }
+  });
+}
+
+function isLikelyLedgerBluetoothDevice(device: BluetoothDevice): boolean {
+  const name = device.name?.toLowerCase() ?? '';
+  return (
+    name.includes('ledger') ||
+    name.includes('nano x') ||
+    name.includes('stax') ||
+    name.includes('flex')
+  );
+}
+
 function isWebHidPermissionsPolicyError(cause: unknown): boolean {
   const message = cause instanceof Error ? cause.message : String(cause);
   const lower = message.toLowerCase();
   return lower.includes('permissions policy') && lower.includes('hid');
+}
+
+function isBluetoothPermissionsPolicyError(cause: unknown): boolean {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  const lower = message.toLowerCase();
+  return lower.includes('permissions policy') && lower.includes('bluetooth');
 }
 
 /** Visible for tests. Exposes the vendor id without leaking `@ledgerhq/devices`. */

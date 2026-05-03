@@ -13,6 +13,7 @@ import {
   MultisigImportError,
   VaultIdentityError,
   type DescriptorKey,
+  type ParsedMultisigImport,
 } from '../index';
 
 const bip32 = BIP32Factory(ecc);
@@ -84,6 +85,26 @@ describe('multisig imports and identity', () => {
     ).toThrow(/ordered multi/);
   });
 
+  it('rejects descriptor imports without the Asylia BIP-48 root', () => {
+    const keys = makeDescriptorKeys();
+    const descriptors = buildWshSortedMultiDescriptor({
+      requiredSignatures: 2,
+      keys,
+      network: 'mainnet',
+    });
+    const body = descriptors.descriptor.split('#')[0]!;
+
+    expect(() => parseDescriptorImport(body.replace("[", "[deadbeef"))).toThrow(
+      /format/,
+    );
+    expect(() => parseDescriptorImport(body.replace("/48'/0'/0'/2']", ']'))).toThrow(
+      /48'\/0'\/0'\/2'/,
+    );
+    expect(() =>
+      parseDescriptorImport(body.replace("/48'/0'/0'/2']", "/48'/0'/1'/2']")),
+    ).toThrow(/48'\/0'\/0'\/2'/);
+  });
+
   it('normalises Caravan wallet backups and rejects non-mainnet files', () => {
     const keys = makeDescriptorKeys();
     const parsed = parseCaravanWalletConfig(JSON.stringify(caravanConfig(keys)));
@@ -106,6 +127,16 @@ describe('multisig imports and identity', () => {
         network: 'testnet',
       })),
     ).toThrow(MultisigImportError);
+
+    expect(() =>
+      parseCaravanWalletConfig(JSON.stringify({
+        ...caravanConfig(keys),
+        extendedPublicKeys: caravanConfig(keys).extendedPublicKeys.map((key, index) => ({
+          ...key,
+          bip32Path: index === 0 ? "m/48'/0'/1'/2'" : key.bip32Path,
+        })),
+      })),
+    ).toThrow(/48'\/0'\/0'\/2'/);
   });
 
   it('normalises Sparrow wallet backups and rejects ordered multisig', () => {
@@ -134,6 +165,19 @@ describe('multisig imports and identity', () => {
         },
       })),
     ).toThrow(/ordered `multi/);
+
+    expect(() =>
+      parseSparrowWalletConfig(JSON.stringify({
+        ...sparrowConfig(keys),
+        keystores: sparrowConfig(keys).keystores.map((key, index) => ({
+          ...key,
+          keyDerivation: {
+            ...key.keyDerivation,
+            derivationPath: index === 0 ? "m/48'/0'/1'/2'" : key.keyDerivation.derivationPath,
+          },
+        })),
+      })),
+    ).toThrow(/48'\/0'\/0'\/2'/);
   });
 
   it('parses native Asylia backups and falls back across providers', () => {
@@ -169,6 +213,33 @@ describe('multisig imports and identity', () => {
       source: 'asylia',
       totalKeys: 3,
     });
+  });
+
+  it('computes the same vault identity across every supported import format', () => {
+    const keys = makeDescriptorKeys();
+    const descriptors = buildWshSortedMultiDescriptor({
+      requiredSignatures: 2,
+      keys,
+      network: 'mainnet',
+    });
+
+    const imports = [
+      parseCaravanWalletConfig(JSON.stringify(caravanConfig(keys))),
+      parseSparrowWalletConfig(JSON.stringify(sparrowConfig(keys))),
+      parseDescriptorImport(descriptors.descriptor),
+      parseAsyliaVaultConfig(JSON.stringify({
+        name: 'Asylia Treasury',
+        version: 1,
+        providers: {
+          caravan: caravanConfig([...keys].reverse()),
+          sparrow: sparrowConfig(keys),
+          descriptor: descriptors.descriptor,
+        },
+      })),
+    ];
+
+    const identities = imports.map(identityFromImport);
+    expect(new Set(identities).size).toBe(1);
   });
 });
 
@@ -223,6 +294,18 @@ function sparrowConfig(keys: readonly DescriptorKey[]) {
       extendedPublicKey: key.xpub,
     })),
   };
+}
+
+function identityFromImport(parsed: ParsedMultisigImport): string {
+  return vaultIdentityKey({
+    requiredSignatures: parsed.requiredSignatures,
+    totalKeys: parsed.totalKeys,
+    keys: parsed.signers.map((signer) => ({
+      fingerprint: signer.fingerprint,
+      derivationPath: signer.derivationPath,
+      xpub: signer.xpub,
+    })),
+  });
 }
 
 function fingerprintHex(fingerprint: number | Uint8Array): string {
