@@ -11,7 +11,8 @@
   "scope": [
     "Wallet production GitHub Actions flow for push and pull-request events",
     "Release-audit target detection for branch push events",
-    "Authenticated OTP E2E scheduling across release/test push and main PR runs"
+    "Authenticated OTP E2E scheduling across pull-request, manual, and push runs",
+    "Static wallet production workflow guard coverage for the OTP push-skip invariant"
   ],
   "modelReviews": [
     {

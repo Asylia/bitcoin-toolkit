@@ -21,8 +21,10 @@ instructions.
 
 - Wallet production GitHub Actions flow for push and pull-request events.
 - Release-audit target detection for branch push events.
-- Live authenticated OTP E2E scheduling so PRs keep auth coverage without racing
-  a duplicate branch-push run.
+- Live authenticated OTP E2E scheduling so PRs and manual runs keep auth
+  coverage without racing duplicate push runs.
+- Static wallet production workflow guard coverage for the OTP push-skip
+  invariant.
 
 ## Model Review
 
@@ -41,11 +43,11 @@ instructions.
 | Info | 1 |
 
 The informational note is operational: authenticated OTP E2E remains mandatory
-for PRs into `main`, while the duplicate `release/test` branch-push execution is
-skipped to avoid mailbox throttling.
+for PRs into `main` and available through manual runs, while push executions skip
+the live mailbox path to avoid OTP throttling.
 
 ## Residual Risk
 
 The authenticated browser flow still depends on external mailbox delivery and
 Supabase OTP rate limits. The release path keeps that coverage in the PR gate and
-avoids only the simultaneous duplicate branch-push run.
+manual workflow runs while avoiding push-run mailbox collisions.
