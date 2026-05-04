@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/asylia-logo.svg" alt="Asylia" width="96" />
+</p>
+
 # Asylia Project: Bitcoin Toolkit
 
 Auditable Bitcoin TypeScript packages for the Asylia self-custody platform.
