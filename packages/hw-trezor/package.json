@@ -1,6 +1,6 @@
 {
   "name": "@asylia/hw-trezor",
-  "version": "0.0.0-dev",
+  "version": "1.0.0",
   "type": "module",
   "description": "Auditable Trezor hardware-wallet TypeScript adapter for Connect initialization, environment checks, xpub export, address display, and P2WSH multisig PSBT signing.",
   "license": "MIT",
@@ -54,10 +54,10 @@
     "clean": "rimraf dist .turbo node_modules/.tmp"
   },
   "peerDependencies": {
-    "@asylia/btc-core": "^0.1.0"
+    "@asylia/btc-core": "^1.0.0"
   },
   "devDependencies": {
-    "@asylia/btc-core": "^0.0.0-dev",
+    "@asylia/btc-core": "^1.0.0",
     "@vitest/coverage-v8": "^4.1.5",
     "rimraf": "^6.1.3",
     "tsup": "^8.5.1",

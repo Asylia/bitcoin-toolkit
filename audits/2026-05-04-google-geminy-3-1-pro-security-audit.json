@@ -1,0 +1,49 @@
+{
+  "auditId": "security-audit-2026-05-04",
+  "date": "2026-05-04",
+  "title": "Wallet spend, proposal, and hardware-wallet hardening",
+  "target": "main",
+  "status": "passed-with-notes",
+  "branch": "release/test",
+  "baseRef": "main",
+  "headRef": "release/test",
+  "commitRange": "main...release/test",
+  "scope": [
+    "Supabase migrations: wallet spend locks, proposal scope hardening, server-validated PSBT updates, direct-insert revoke",
+    "Supabase Edge Functions: proposal-psbt, btc-broadcast, csp-report, ops-health, ops-monitoring-synthetic",
+    "Shared Edge auth: constant-time bearer secret comparison",
+    "Wallet SPA services: sessions IP masking, proposals service-side validation, logger redaction, spendPlanner P2WSH fee math",
+    "Bitcoin core: PSBT outpoint parsing strictness and P2WSH-multisig coin selection vbytes",
+    "Hardware-wallet @asylia/hw-trezor: log redaction with safe-key allowlist and build-flag-gated unsafe-diagnostic path",
+    "Wallet Content Security Policy and Permissions-Policy on Vercel and the SPA _headers file",
+    "CI release controls: post-deploy synthetic smoke workflow and wallet production gate guards",
+    "Audit tooling: enforce model slug in audit file names"
+  ],
+  "modelReviews": [
+    {
+      "provider": "Google",
+      "family": "Gemini",
+      "model": "Gemini 3.1 Pro",
+      "version": "google-geminy-3-1-pro",
+      "role": "Security-first release audit",
+      "status": "completed"
+    }
+  ],
+  "findingsSummary": {
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0,
+    "info": 2,
+    "blockingFindings": false,
+    "unresolvedCriticalOrHigh": false
+  },
+  "reportPath": "docs/audits/reports/2026-05-04-google-geminy-3-1-pro-security-audit.md",
+  "publicReportPath": "docs/audits/public/2026-05-04-google-geminy-3-1-pro-security-audit.md",
+  "marketingPath": "apps/marketing/content/audits/2026-05-04-google-geminy-3-1-pro-security-audit.md",
+  "publicSummary": "Asylia hardened the wallet spend pipeline end to end before promoting release/test to main: server-validated PSBT updates, broadcast rebinding to the stored proposal PSBT, redacted hardware-wallet diagnostics, constant-time shared-secret comparison, tighter wallet CSP, and P2WSH-aligned coin-selection fee math.",
+  "publication": {
+    "safeForPublic": true,
+    "summary": "This report covers release-control, RLS, Edge Function, CSP, hardware-wallet adapter, and coin-selection details only. It does not disclose secrets, private user data, descriptors, xpub sets, PSBT base64, UTXO arrays, OTP mailbox credentials, paid chain-data credentials, or the operational ops-health bearer token."
+  }
+}

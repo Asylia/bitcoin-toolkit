@@ -30,8 +30,8 @@ self-custody.
 
 ## Status
 
-`0.1.0`. The package ships the active Asylia wallet primitives. The public API
-can still change while the toolkit is in the `0.x` release line.
+`1.0.0`. The package ships the stable Asylia Bitcoin primitive API for the
+native-SegWit multisig wallet toolkit.
 
 ## Installation
 
@@ -170,9 +170,9 @@ yarn workspace @asylia/btc-core test:coverage
 
 ## Versioning and Audit Stance
 
-Until the first stable release, breaking changes are allowed. Stable releases
-will use semantic versioning, changelog entries, git tags, and documented audit
-scope. Vulnerability disclosure is covered in [`SECURITY.md`](./SECURITY.md).
+Stable releases use semantic versioning, changelog entries, git tags, and
+documented audit scope. Vulnerability disclosure is covered in
+[`SECURITY.md`](./SECURITY.md).
 
 ## License
 

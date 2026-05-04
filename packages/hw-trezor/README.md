@@ -27,7 +27,7 @@ multisig, BIP-48, BIP-380 descriptor, xpub export, self-custody, TypeScript.
 
 ## Status
 
-`0.1.0`. Initialization, environment detection, xpub export, address
+`1.0.0`. Initialization, environment detection, xpub export, address
 display, live events, and `wsh(sortedmulti(...))` PSBT signing are implemented.
 
 ## Installation
@@ -197,8 +197,8 @@ yarn workspace @asylia/hw-trezor test
 
 ## Versioning and Audit Stance
 
-The package uses semver in the `0.x` release line until the first audited stable API. See
-[`SECURITY.md`](./SECURITY.md) for the disclosure process and security scope.
+The package uses semver for stable releases. See [`SECURITY.md`](./SECURITY.md)
+for the disclosure process and security scope.
 
 ## License
 

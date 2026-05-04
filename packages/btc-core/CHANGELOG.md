@@ -2,12 +2,17 @@
 
 All notable changes to this package will be documented in this file. The
 format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
-this package adheres to [Semantic Versioning](https://semver.org/) once it
-ships its first stable release.
+this package adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-05-04
+
 ### Added
 
-- Initial package scaffolding (TypeScript stub, MIT license, security
-  policy, public API entry point).
+- Stable native-SegWit P2WSH multisig toolkit for BIP-48 derivation,
+  BIP-380 descriptors, deterministic address generation, PSBT v2
+  construction/inspection/finalization, signature verification, and coin
+  selection.
+- Public MIT package metadata, security policy, README, and npm publish
+  allowlist for the first stable release.

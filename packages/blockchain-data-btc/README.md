@@ -29,8 +29,8 @@ request deduplication, TypeScript wallet SDK.
 
 ## Status
 
-`0.1.0`. The package ships the active Asylia chain-data provider stack. The
-public API can still change while the toolkit is in the `0.x` release line.
+`1.0.0`. The package ships the stable Asylia chain-data provider stack for the
+Bitcoin wallet toolkit.
 
 ## Installation
 

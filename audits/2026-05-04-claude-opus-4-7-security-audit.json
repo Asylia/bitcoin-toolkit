@@ -1,0 +1,57 @@
+{
+  "auditId": "claude-opus-4-7-security-audit-2026-05-04",
+  "date": "2026-05-04",
+  "title": "Independent second-model audit: wallet spend, proposal, and hardware-wallet hardening",
+  "target": "main",
+  "status": "passed-with-notes",
+  "branch": "release/test",
+  "baseRef": "main",
+  "headRef": "release/test",
+  "commitRange": "main...release/test",
+  "scope": [
+    "Supabase migrations: wallet spend locks, proposal scope hardening, server-validated PSBT updates, direct-insert revoke, broadcast RPC and lifecycle trigger",
+    "Supabase Edge Functions: proposal-psbt, btc-broadcast, csp-report, ops-health, ops-monitoring-synthetic, btc-network-fees, btc-fiat-rates, btc-chain-fallback",
+    "Shared Edge auth: constant-time bearer secret comparison and header-secret fallback",
+    "Wallet SPA services: sessions IPv6 masking, proposals service-side validation, logger redaction, spendPlanner P2WSH fee math",
+    "Bitcoin core: PSBT outpoint parsing strictness and P2WSH-multisig coin selection vbytes",
+    "Hardware-wallet @asylia/hw-trezor: log redaction with safe-key allowlist and build-flag-gated unsafe-diagnostic path, ECDSA post-flight signature verification",
+    "Wallet Content Security Policy and Permissions-Policy on Vercel and the SPA _headers file",
+    "CI release controls: post-deploy synthetic smoke workflow and wallet production gate guards",
+    "Audit tooling: enforce model slug in audit file names"
+  ],
+  "modelReviews": [
+    {
+      "provider": "Anthropic",
+      "family": "Claude",
+      "model": "Claude Opus 4.7",
+      "version": "claude-opus-4-7",
+      "role": "Independent second-model security audit",
+      "status": "completed"
+    },
+    {
+      "provider": "Google",
+      "family": "Gemini",
+      "model": "Gemini 3.1 Pro",
+      "version": "google-geminy-3-1-pro",
+      "role": "Primary security-first release audit (recorded as security-audit-2026-05-04)",
+      "status": "referenced"
+    }
+  ],
+  "findingsSummary": {
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0,
+    "info": 3,
+    "blockingFindings": false,
+    "unresolvedCriticalOrHigh": false
+  },
+  "reportPath": "docs/audits/reports/2026-05-04-claude-opus-4-7-security-audit.md",
+  "publicReportPath": "docs/audits/public/2026-05-04-claude-opus-4-7-security-audit.md",
+  "marketingPath": "apps/marketing/content/audits/2026-05-04-claude-opus-4-7-security-audit.md",
+  "publicSummary": "Independent second-model security audit by Claude Opus 4.7 covering the same release/test promotion candidate as the Gemini 3.1 Pro audit recorded earlier the same day. Concurs with zero critical/high/medium/low findings; adds one informational note about the row-scoped UPDATE policy on V1_VaultProposals. No release blocker.",
+  "publication": {
+    "safeForPublic": true,
+    "summary": "This report covers release-control, RLS, Edge Function, CSP, hardware-wallet adapter, and coin-selection details only. It does not disclose secrets, private user data, descriptors, xpub sets, PSBT base64, UTXO arrays, OTP mailbox credentials, paid chain-data credentials, or the operational ops-health bearer token."
+  }
+}

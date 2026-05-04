@@ -1,6 +1,6 @@
 {
   "name": "@asylia/btc-core",
-  "version": "0.0.0-dev",
+  "version": "1.0.0",
   "type": "module",
   "description": "Auditable Bitcoin TypeScript core for native-SegWit P2WSH multisig, BIP-48 derivation, BIP-380 descriptors, PSBT v2, signature verification, and coin selection.",
   "license": "MIT",

@@ -35,7 +35,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@asylia/btc-core@npm:^0.0.0-dev, @asylia/btc-core@workspace:packages/btc-core":
+"@asylia/btc-core@npm:^1.0.0, @asylia/btc-core@workspace:packages/btc-core":
   version: 0.0.0-use.local
   resolution: "@asylia/btc-core@workspace:packages/btc-core"
   dependencies:
@@ -56,7 +56,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@asylia/hw-ledger@workspace:packages/hw-ledger"
   dependencies:
-    "@asylia/btc-core": "npm:^0.0.0-dev"
+    "@asylia/btc-core": "npm:^1.0.0"
     "@ledgerhq/errors": "npm:^6.34.0"
     "@ledgerhq/hw-transport": "npm:^6.35.1"
     "@ledgerhq/hw-transport-web-ble": "npm:^6.34.1"
@@ -70,7 +70,7 @@ __metadata:
     typescript: "npm:^6.0.3"
     vitest: "npm:^4.1.5"
   peerDependencies:
-    "@asylia/btc-core": ^0.1.0
+    "@asylia/btc-core": ^1.0.0
   languageName: unknown
   linkType: soft
 
@@ -78,7 +78,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@asylia/hw-trezor@workspace:packages/hw-trezor"
   dependencies:
-    "@asylia/btc-core": "npm:^0.0.0-dev"
+    "@asylia/btc-core": "npm:^1.0.0"
     "@trezor/connect-web": "npm:^9.7.3"
     "@vitest/coverage-v8": "npm:^4.1.5"
     bs58check: "npm:^4.0.0"
@@ -88,7 +88,7 @@ __metadata:
     typescript: "npm:^6.0.3"
     vitest: "npm:^4.1.5"
   peerDependencies:
-    "@asylia/btc-core": ^0.1.0
+    "@asylia/btc-core": ^1.0.0
   languageName: unknown
   linkType: soft
 

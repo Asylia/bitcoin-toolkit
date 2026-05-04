@@ -28,7 +28,7 @@ wallet policy, PSBT signing, P2WSH multisig, BIP-48, self-custody, TypeScript.
 
 ## Status
 
-`0.1.0`. Environment detection, xpub export, wallet-policy registration,
+`1.0.0`. Environment detection, xpub export, wallet-policy registration,
 address display, live events, and PSBT signing are implemented.
 
 ## Installation
@@ -142,8 +142,8 @@ yarn workspace @asylia/hw-ledger test
 
 ## Versioning and Audit Stance
 
-The package uses semver in the `0.x` release line until the first audited stable
-API. Upstream Ledger dependencies are intentionally pinned to specific minor versions. See
+The package uses semver for stable releases. Upstream Ledger dependencies are
+intentionally pinned to specific minor versions. See
 [`SECURITY.md`](./SECURITY.md) for the disclosure process and scope.
 
 ## License

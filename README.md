@@ -60,7 +60,7 @@ npm install @asylia/hw-ledger @asylia/btc-core
 npm install @asylia/hw-trezor @asylia/btc-core
 ```
 
-The first public npm release is `0.1.0` for all four published packages. The
+The first stable npm release is `1.0.0` for all four published packages. The
 hardware-wallet adapters declare `@asylia/btc-core` as a peer dependency so
 wallet applications keep one shared Bitcoin primitive implementation.
 
@@ -125,9 +125,9 @@ The release workflow behaves as follows:
 - Merging that Version Packages PR updates versions and changelogs, then
   publishes only packages whose versions are not already on npm.
 - If a sync contains no package changes, no version is published.
-- The `0.x` line is still pre-stable: patch releases are compatible fixes,
-  minor releases may add or adjust public API, and major releases are reserved
-  for the first stable contract.
+- The `1.x` line is the stable public API: patch releases are compatible
+  fixes, minor releases add compatible capabilities, and major releases are
+  reserved for breaking changes.
 
 Prefer npm Trusted Publishing for this repository. If Trusted Publishing is not
 configured, add an npm automation token as the `NPM_TOKEN` secret.
