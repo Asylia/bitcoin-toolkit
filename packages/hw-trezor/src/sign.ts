@@ -206,19 +206,26 @@ export async function signWshSortedMultiPsbt(
   log.info('signWshSortedMultiPsbt entry', {
     coin,
     scriptType,
-    requestedFingerprint: input.signerFingerprint,
     vault: {
       requiredSignatures: input.vault.requiredSignatures,
       keyCount: input.vault.keys.length,
+    },
+    psbtLengthChars: input.psbtBase64.length,
+  });
+  if (
+    typeof __ASYLIA_HW_TREZOR_UNSAFE_DIAGNOSTICS__ !== 'undefined' &&
+    __ASYLIA_HW_TREZOR_UNSAFE_DIAGNOSTICS__ === true
+  ) {
+    log.unsafeDiagnostic('signWshSortedMultiPsbt entry detail', () => ({
+      requestedFingerprint: input.signerFingerprint,
       cosigners: input.vault.keys.map((k, i) => ({
         index: i,
         fingerprint: k.fingerprint,
         derivationPath: k.derivationPath,
         xpubPreview: previewXpub(k.xpub),
       })),
-    },
-    psbtLengthChars: input.psbtBase64.length,
-  });
+    }));
+  }
 
   if (scriptType !== 'p2wsh') {
     log.error('unsupported script type', { scriptType });
@@ -293,26 +300,33 @@ export async function signWshSortedMultiPsbt(
     outputCount: inspected.outputs.length,
     txVersion: inspected.txVersion,
     fallbackLocktime: inspected.fallbackLocktime,
-    inputs: inspected.inputs.map((i, idx) => ({
-      index: idx,
-      txid: i.txid,
-      vout: i.vout,
-      valueSats: i.valueSats,
-      bip32DerivationFingerprints: i.bip32Derivation.map((d) =>
-        bytesToHex(d.masterFingerprint),
-      ),
-      partialSigCount: i.partialSigs.length,
-      sequence: i.sequence,
-    })),
-    outputs: inspected.outputs.map((o, idx) => ({
-      index: idx,
-      amountSats: o.amountSats,
-      hasWitnessScript: o.witnessScript !== null,
-      bip32DerivationFingerprints: o.bip32Derivation.map((d) =>
-        bytesToHex(d.masterFingerprint),
-      ),
-    })),
   });
+  if (
+    typeof __ASYLIA_HW_TREZOR_UNSAFE_DIAGNOSTICS__ !== 'undefined' &&
+    __ASYLIA_HW_TREZOR_UNSAFE_DIAGNOSTICS__ === true
+  ) {
+    log.unsafeDiagnostic('PSBT inspected detail', () => ({
+      inputs: inspected.inputs.map((i, idx) => ({
+        index: idx,
+        txid: i.txid,
+        vout: i.vout,
+        valueSats: i.valueSats,
+        bip32DerivationFingerprints: i.bip32Derivation.map((d) =>
+          bytesToHex(d.masterFingerprint),
+        ),
+        partialSigCount: i.partialSigs.length,
+        sequence: i.sequence,
+      })),
+      outputs: inspected.outputs.map((o, idx) => ({
+        index: idx,
+        amountSats: o.amountSats,
+        hasWitnessScript: o.witnessScript !== null,
+        bip32DerivationFingerprints: o.bip32Derivation.map((d) =>
+          bytesToHex(d.masterFingerprint),
+        ),
+      })),
+    }));
+  }
 
   // Pre-parse every cosigner xpub into the Trezor `HDNodeType` shape.
   // Done once up front so per-input/per-output multisig blocks are a
@@ -328,12 +342,7 @@ export async function signWshSortedMultiPsbt(
     };
   }
   log.info('cosigner xpubs parsed', {
-    cosigners: cosignerNodes.map((c, i) => ({
-      index: i,
-      fingerprint: c.key.fingerprint,
-      depth: c.node.depth,
-      childNum: c.node.child_num,
-    })),
+    keyCount: cosignerNodes.length,
   });
 
   const requestedCosignerIndex = cosignerNodes.findIndex(
@@ -355,7 +364,6 @@ export async function signWshSortedMultiPsbt(
     };
   }
   log.info('requested cosigner located in vault', {
-    requestedFingerprint: fingerprint,
     requestedCosignerIndex,
   });
 
@@ -389,8 +397,7 @@ export async function signWshSortedMultiPsbt(
   );
   log.info('signer base address_n resolved', {
     requestedCosignerIndex,
-    derivationPath: signerKey.derivationPath,
-    addressN: signerBaseAddressN,
+    pathComponentCount: signerBaseAddressN.length,
   });
 
   // ----- input translation -------------------------------------------------
@@ -445,15 +452,24 @@ export async function signWshSortedMultiPsbt(
     });
     log.info('input translated for Trezor', {
       inputIndex: i,
-      txid: psbtInput.txid,
-      vout: psbtInput.vout,
-      valueSats: psbtInput.valueSats,
-      chain: slot.chain,
-      addrIndex: slot.index,
       canSign: ourEntry !== null,
-      signerLeafPubkeyPreview: ourEntry ? bytesToHex(ourEntry.pubkey).slice(0, 16) + '…' : null,
-      addressN: [...(signerBaseAddressN ?? []), slot.chain, slot.index],
     });
+    if (
+      typeof __ASYLIA_HW_TREZOR_UNSAFE_DIAGNOSTICS__ !== 'undefined' &&
+      __ASYLIA_HW_TREZOR_UNSAFE_DIAGNOSTICS__ === true
+    ) {
+      log.unsafeDiagnostic('input translated for Trezor detail', () => ({
+        inputIndex: i,
+        txid: psbtInput.txid,
+        vout: psbtInput.vout,
+        valueSats: psbtInput.valueSats,
+        chain: slot.chain,
+        addrIndex: slot.index,
+        canSign: ourEntry !== null,
+        signerLeafPubkeyPreview: ourEntry ? `${bytesToHex(ourEntry.pubkey).slice(0, 16)}...` : null,
+        addressN: [...(signerBaseAddressN ?? []), slot.chain, slot.index],
+      }));
+    }
   }
 
   if (!inputContext.some((ctx) => ctx.canSign)) {
@@ -493,16 +509,26 @@ export async function signWshSortedMultiPsbt(
     };
   }
   log.info('outputs translated for Trezor', {
-    outputs: txOutputs.map((o, i) => ({
-      index: i,
-      script_type: o.script_type,
-      amount: o.amount,
-      target:
-        o.script_type === 'PAYTOADDRESS'
-          ? o.address
-          : `change → address_n ${JSON.stringify(o.address_n)}`,
-    })),
+    outputCount: txOutputs.length,
+    externalOutputCount: txOutputs.filter((o) => o.script_type === 'PAYTOADDRESS').length,
+    changeOutputCount: txOutputs.filter((o) => o.script_type !== 'PAYTOADDRESS').length,
   });
+  if (
+    typeof __ASYLIA_HW_TREZOR_UNSAFE_DIAGNOSTICS__ !== 'undefined' &&
+    __ASYLIA_HW_TREZOR_UNSAFE_DIAGNOSTICS__ === true
+  ) {
+    log.unsafeDiagnostic('outputs translated for Trezor detail', () => ({
+      outputs: txOutputs.map((o, i) => ({
+        index: i,
+        script_type: o.script_type,
+        amount: o.amount,
+        target:
+          o.script_type === 'PAYTOADDRESS'
+            ? o.address
+            : `change address_n ${JSON.stringify(o.address_n)}`,
+      })),
+    }));
+  }
 
   // Mirror the PSBT's transaction version + locktime in the Trezor
   // request. CRITICAL: Trezor's `signTransaction` defaults to
@@ -525,8 +551,7 @@ export async function signWshSortedMultiPsbt(
     coin,
     version: txVersion,
     locktime: txLocktime,
-    requestedFingerprint: fingerprint,
-    inputsCanSign: inputContext.filter((ctx) => ctx.canSign).length,
+    signableInputCount: inputContext.filter((ctx) => ctx.canSign).length,
   });
 
   // ----- device call -------------------------------------------------------
@@ -565,9 +590,17 @@ export async function signWshSortedMultiPsbt(
   log.info('signTransaction response', {
     elapsedMs: Date.now() - signStart,
     signatureCount: rawSignatures.length,
-    signatureLengths: rawSignatures.map((s) => (typeof s === 'string' ? s.length : 0)),
-    serializedTxLengthChars: response.payload.serializedTx?.length ?? 0,
+    hasSerializedTx: typeof response.payload.serializedTx === 'string',
   });
+  if (
+    typeof __ASYLIA_HW_TREZOR_UNSAFE_DIAGNOSTICS__ !== 'undefined' &&
+    __ASYLIA_HW_TREZOR_UNSAFE_DIAGNOSTICS__ === true
+  ) {
+    log.unsafeDiagnostic('signTransaction response detail', () => ({
+      signatureLengths: rawSignatures.map((s) => (typeof s === 'string' ? s.length : 0)),
+      serializedTxLengthChars: response.payload.serializedTx?.length ?? 0,
+    }));
+  }
 
   if (rawSignatures.length !== txInputs.length) {
     log.error('signature count mismatch', {
@@ -674,15 +707,11 @@ export async function signWshSortedMultiPsbt(
         reattributed = true;
         log.warn('post-flight: re-attributing signature to a different vault cosigner', {
           inputIndex: i,
-          expectedPubkeyHex: bytesToHex(expectedPubkey),
-          actualPubkeyHex: bytesToHex(owner),
         });
       } else {
         log.error('post-flight: signature does not verify against any vault cosigner — refusing it', {
           inputIndex: i,
-          expectedPubkeyHex: bytesToHex(expectedPubkey),
-          candidatePubkeyHexes: candidates.map((c) => bytesToHex(c)),
-          sigHexPreview: sigHex.slice(0, 16) + '…',
+          keyCount: candidates.length,
         });
         return {
           ok: false,
@@ -699,10 +728,7 @@ export async function signWshSortedMultiPsbt(
 
     log.info('partial-sig verified — preparing keypair for PSBT merge', {
       inputIndex: i,
-      pubkeyHex: bytesToHex(actualPubkey),
       reattributed,
-      signatureHexPreview: sigHex.slice(0, 16) + '…',
-      signatureBytes: sigHex.length / 2,
     });
 
     attributed.push({
@@ -766,8 +792,6 @@ export async function signWshSortedMultiPsbt(
   log.info('signTransaction success', {
     signedInputCount: signedInputs.length,
     psbtLengthChars: merged.length,
-    requestedFingerprint: fingerprint,
-    signedAsFingerprint: finalSignedAsFingerprint,
     pivoted: postFlightReattributed,
   });
 

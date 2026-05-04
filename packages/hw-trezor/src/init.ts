@@ -66,11 +66,11 @@ export async function initTrezor(
 
   const { manifest, debug = false } = normalized;
   if (!manifest?.appName || !manifest?.appUrl || !manifest?.email) {
-    log.error('manifest missing required fields', { manifest });
+    log.error('manifest missing required fields', { hasManifest: Boolean(manifest) });
     return { ok: false, error: asAdapterError('manifest_required') };
   }
 
-  log.info('init start', { manifest, debug });
+  log.info('init start', { hasManifest: true });
 
   pending = (async (): Promise<AdapterResult<true>> => {
     try {

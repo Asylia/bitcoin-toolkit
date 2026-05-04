@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   addPartialSignaturesToPsbt: vi.fn(),
@@ -36,15 +36,27 @@ vi.mock('./sdk', () => ({
 import { signWshSortedMultiPsbt } from './sign';
 import type { SignPsbtInput } from './sign';
 
+type GlobalWithProcess = typeof globalThis & {
+  process?: { env?: Record<string, string | undefined> };
+};
+
 const FINGERPRINT = 'deadbeef';
 const OTHER_FINGERPRINT = 'baddcafe';
 const FINGERPRINT_BYTES = Uint8Array.from([0xde, 0xad, 0xbe, 0xef]);
 const OTHER_FINGERPRINT_BYTES = Uint8Array.from([0xba, 0xdd, 0xca, 0xfe]);
 const PUBKEY = Uint8Array.from([0x02, ...Array.from({ length: 32 }, (_, i) => i + 1)]);
 const OTHER_PUBKEY = Uint8Array.from([0x03, ...Array.from({ length: 32 }, (_, i) => i + 1)]);
+const TXID = '11'.repeat(32);
+const PUBKEY_HEX = '02' + Array.from({ length: 32 }, (_, i) => (i + 1).toString(16).padStart(2, '0')).join('');
+
+let originalDebugEnv: string | undefined;
 
 describe('signWshSortedMultiPsbt', () => {
   beforeEach(() => {
+    originalDebugEnv = (globalThis as GlobalWithProcess).process?.env?.ASYLIA_HW_DEBUG;
+    if ((globalThis as GlobalWithProcess).process?.env) {
+      (globalThis as GlobalWithProcess).process!.env!.ASYLIA_HW_DEBUG = undefined;
+    }
     vi.clearAllMocks();
     mocks.addPartialSignaturesToPsbt.mockReturnValue('signed-psbt');
     mocks.addressFromScript.mockReturnValue('bc1qrecipient');
@@ -69,6 +81,13 @@ describe('signWshSortedMultiPsbt', () => {
         serializedTx: '00',
       },
     });
+  });
+
+  afterEach(() => {
+    if ((globalThis as GlobalWithProcess).process?.env) {
+      (globalThis as GlobalWithProcess).process!.env!.ASYLIA_HW_DEBUG = originalDebugEnv;
+    }
+    vi.restoreAllMocks();
   });
 
   it('rejects malformed signing requests before calling Trezor Connect', async () => {
@@ -144,6 +163,35 @@ describe('signWshSortedMultiPsbt', () => {
         },
       ],
     });
+  });
+
+  it('keeps runtime debug signing logs free of spend graph material', async () => {
+    if ((globalThis as GlobalWithProcess).process?.env) {
+      (globalThis as GlobalWithProcess).process!.env!.ASYLIA_HW_DEBUG = '1';
+    }
+    const consoleInfo = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(signWshSortedMultiPsbt(input())).resolves.toMatchObject({ ok: true });
+
+    const renderedLogs = JSON.stringify([
+      ...consoleInfo.mock.calls,
+      ...consoleWarn.mock.calls,
+      ...consoleError.mock.calls,
+    ]);
+    expect(renderedLogs).not.toContain(TXID);
+    expect(renderedLogs).not.toContain('100000');
+    expect(renderedLogs).not.toContain('90000');
+    expect(renderedLogs).not.toContain('bc1qrecipient');
+    expect(renderedLogs).not.toContain(FINGERPRINT);
+    expect(renderedLogs).not.toContain(OTHER_FINGERPRINT);
+    expect(renderedLogs).not.toContain("m/48'/0'/0'/2'");
+    expect(renderedLogs).not.toContain('xpub-a');
+    expect(renderedLogs).not.toContain('xpub-b');
+    expect(renderedLogs).not.toContain(PUBKEY_HEX);
+    expect(renderedLogs).not.toContain('30440220');
+    expect(renderedLogs).not.toContain('signatureLengths');
   });
 
   it('maps vault change outputs as PAYTOWITNESS with multisig metadata', async () => {

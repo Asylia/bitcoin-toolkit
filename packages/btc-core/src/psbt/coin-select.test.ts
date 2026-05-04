@@ -23,9 +23,9 @@ describe('selectCoinsLargestFirst', () => {
 
     expect(result).toMatchObject({
       ok: true,
-      feeSats: 348,
-      changeSats: 19_652,
-      vbytes: 174,
+      feeSats: 390,
+      changeSats: 19_610,
+      vbytes: 195,
     });
     if (result.ok) {
       expect(result.selected.map((entry) => entry.txid)).toEqual(['22'.repeat(32)]);
@@ -44,7 +44,7 @@ describe('selectCoinsLargestFirst', () => {
       selected: [utxo('44', 0, 10_000)],
       feeSats: 300,
       changeSats: 0,
-      vbytes: 143,
+      vbytes: 152,
     });
   });
 
@@ -68,9 +68,9 @@ describe('selectCoinsLargestFirst', () => {
     ]);
     expect(result).toMatchObject({
       ok: true,
-      feeSats: 284,
-      changeSats: 9_716,
-      vbytes: 284,
+      feeSats: 305,
+      changeSats: 9_695,
+      vbytes: 305,
     });
     if (result.ok) {
       expect(result.selected.map((entry) => entry.txid)).toEqual([
@@ -92,7 +92,7 @@ describe('selectCoinsLargestFirst', () => {
       selected: [utxo('dd', 0, 10_000)],
       feeSats: 170,
       changeSats: 0,
-      vbytes: 143,
+      vbytes: 152,
     });
   });
 
@@ -120,14 +120,14 @@ describe('maxSpendableSats', () => {
     const utxos = [utxo('66', 0, 10_000), utxo('77', 1, 30_000)];
     const amount = maxSpendableSats({ utxos, feeRateSatsPerVByte: 1 });
 
-    expect(amount).toBe(39_747);
+    expect(amount).toBe(39_738);
     expect(
       selectCoinsLargestFirst({
         utxos,
         targetSats: amount,
         feeRateSatsPerVByte: 1,
       }),
-    ).toMatchObject({ ok: true, feeSats: 253, changeSats: 0 });
+    ).toMatchObject({ ok: true, feeSats: 262, changeSats: 0 });
   });
 
   it('returns zero for empty inputs or non-positive fee rates', () => {
@@ -143,7 +143,7 @@ describe('selectCoinsLargestFirstFixedFee', () => {
       utxos: [utxo('88', 0, 120_000), utxo('99', 1, 30_000)],
       targetSats: 100_000,
       feeSats: 1_000,
-      fixedVbytes: 76,
+      fixedVbytes: 85,
       changeOutputVbytes: 43,
     });
 
@@ -151,7 +151,7 @@ describe('selectCoinsLargestFirstFixedFee', () => {
       ok: true,
       feeSats: 1_000,
       changeSats: 19_000,
-      vbytes: 186,
+      vbytes: 195,
     });
   });
 
@@ -160,7 +160,7 @@ describe('selectCoinsLargestFirstFixedFee', () => {
       utxos: [utxo('aa', 0, 10_000)],
       targetSats: 9_000,
       feeSats: 700,
-      fixedVbytes: 76,
+      fixedVbytes: 85,
       changeOutputVbytes: 43,
     });
 
@@ -177,7 +177,7 @@ describe('selectCoinsLargestFirstFixedFee', () => {
       utxos: [utxo('ab', 0, 10_000)],
       targetSats: 9_000,
       feeSats: 1_000,
-      fixedVbytes: 76,
+      fixedVbytes: 85,
       changeOutputVbytes: 43,
     });
 
@@ -186,7 +186,7 @@ describe('selectCoinsLargestFirstFixedFee', () => {
       selected: [utxo('ab', 0, 10_000)],
       feeSats: 1_000,
       changeSats: 0,
-      vbytes: 143,
+      vbytes: 152,
     });
   });
 

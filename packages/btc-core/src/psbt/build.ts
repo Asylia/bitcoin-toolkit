@@ -267,7 +267,9 @@ export function extractPsbtInputs(
   for (let i = 0; i < txids.length; i += 1) {
     const txid = txids[i];
     const vout = vouts[i];
-    if (typeof txid !== 'string' || typeof vout !== 'number') continue;
+    if (typeof txid !== 'string' || typeof vout !== 'number') {
+      throw new PsbtBuildError(`Input ${i}: PSBT outpoint is malformed.`);
+    }
     outpoints.push({ txid: reverseTxidHex(txid), vout });
   }
   return outpoints;

@@ -1,8 +1,9 @@
 import { Buffer } from 'buffer';
 import * as ecc from '@bitcoinerlab/secp256k1';
+import { PsbtV2 } from '@caravan/psbt';
 import { BIP32Factory, type BIP32Interface } from 'bip32';
 import { address as bitcoinAddress, networks, payments, Transaction } from 'bitcoinjs-lib';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   addPartialSignaturesToPsbt,
@@ -12,6 +13,7 @@ import {
   computeBip143SighashAll,
   countPsbtSigners,
   deriveWshSortedMultiAddress,
+  extractPsbtInputs,
   finaliseAndExtractTransaction,
   inspectPsbtV2,
   PsbtBuildError,
@@ -163,6 +165,44 @@ describe('buildWshSortedMultiPsbt', () => {
         ],
       }),
     ).toThrow(PsbtBuildError);
+  });
+});
+
+describe('extractPsbtInputs', () => {
+  it('rejects malformed PSBT input outpoints instead of silently dropping them', () => {
+    const fixture = buildFixture({ utxoCount: 1 });
+    const validInternalTxid = '00'.repeat(32);
+    let txidReads = 0;
+    let voutReads = 0;
+
+    const txidSpy = vi
+      .spyOn(PsbtV2.prototype, 'PSBT_IN_PREVIOUS_TXID', 'get')
+      .mockImplementation(() => {
+        txidReads += 1;
+        return txidReads === 1
+          ? [validInternalTxid]
+          : [validInternalTxid, undefined as unknown as string];
+      });
+    const voutSpy = vi
+      .spyOn(PsbtV2.prototype, 'PSBT_IN_OUTPUT_INDEX', 'get')
+      .mockImplementation(() => {
+        voutReads += 1;
+        return voutReads === 1 ? [0] : [0, 1];
+      });
+
+    try {
+      let thrown: unknown;
+      try {
+        extractPsbtInputs(fixture.psbtBase64);
+      } catch (cause) {
+        thrown = cause;
+      }
+      expect(thrown).toBeInstanceOf(PsbtBuildError);
+      expect((thrown as Error).message).toBe('Input 1: PSBT outpoint is malformed.');
+    } finally {
+      txidSpy.mockRestore();
+      voutSpy.mockRestore();
+    }
   });
 });
 

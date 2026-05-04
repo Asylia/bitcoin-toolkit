@@ -139,6 +139,38 @@ describe('Trezor hardware logger', () => {
     expect(rendered).not.toContain('Device used elsewhere by vendor app');
   });
 
+  it('redacts spend-graph fields even when their keys are not explicitly sensitive', () => {
+    const redacted = redactLogContext({
+      output: {
+        amount: 90_000,
+        target: ADDRESS,
+      },
+      input: {
+        valueSats: 100_000,
+        vout: 1,
+        addrIndex: 5,
+      },
+      signatureLengths: [144],
+      outputCount: 1,
+      elapsedMs: 12,
+    });
+
+    expect(redacted).toMatchObject({
+      output: {
+        amount: '[redacted]',
+        target: '[redacted:address]',
+      },
+      input: {
+        valueSats: '[redacted]',
+        vout: '[redacted]',
+        addrIndex: '[redacted]',
+      },
+      signatureLengths: ['[redacted]'],
+      outputCount: 1,
+      elapsedMs: 12,
+    });
+  });
+
   it.each(['1', 'true'])('enables routine info logs when ASYLIA_HW_DEBUG=%s', (value) => {
     if ((globalThis as GlobalWithProcess).process?.env) {
       (globalThis as GlobalWithProcess).process!.env!.ASYLIA_HW_DEBUG = value;

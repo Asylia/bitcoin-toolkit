@@ -23,6 +23,8 @@ const DESCRIPTOR_PATTERN = /\b(?:wsh|sh|tr)\([^)]*(?:sortedmulti|multi)[\s\S]*\)
 const SENSITIVE_KEY_PATTERN =
   /(address|cause|descriptor|device.*id|error|extended.*public.*key|features|fingerprint|hmac|manifest|message|name|payload|policy|psbt|public.*key|raw|response|serial|stack|statusText|txid|xpub|ypub|zpub|tpub|upub|vpub|xfp)/i;
 const STABLE_STRING_PATTERN = /^[A-Za-z0-9_.:-]{1,80}$/;
+const SAFE_CONTEXT_KEY_PATTERN =
+  /^(?:(?:[A-Za-z0-9]+)?Count|buttonCode|canSign|coin|code|count|elapsedMs|fallbackLocktime|hasManifest|hasSerializedTx|hasSignerLeafPubkey|inputIndex|locktime|ok|outputIndex|pathComponentCount|phase|pivoted|psbtLengthChars|psbtLengthDeltaChars|reattributed|requiredSignatures|scriptType|status|statusCode|success|suiteLikely|threshold|timeoutMs|transportType|transportVersion|txVersion|type|version)$/;
 const SAFE_SUMMARY_KEYS = new Set([
   'success',
   'code',
@@ -57,6 +59,10 @@ function summariseStableValue(value: unknown): unknown {
   return value;
 }
 
+function isSafeContextKey(key: string): boolean {
+  return SAFE_SUMMARY_KEYS.has(key) || SAFE_CONTEXT_KEY_PATTERN.test(key);
+}
+
 function summariseSensitiveObject(value: unknown): unknown {
   if (typeof value !== 'object' || value === null) {
     if (typeof value !== 'string') return REDACTED;
@@ -84,8 +90,14 @@ function redactValue(value: unknown, key = '', depth = 0, seen = new WeakSet<obj
   if (typeof value === 'string') {
     const redacted = redactString(value);
     if (redacted !== value) return redacted;
-    if (SAFE_SUMMARY_KEYS.has(key)) return summariseStableValue(value);
+    if (isSafeContextKey(key)) return summariseStableValue(value);
     return REDACTED;
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return isSafeContextKey(key) ? value : REDACTED;
+  }
+  if (typeof value === 'bigint') {
+    return isSafeContextKey(key) ? value.toString() : REDACTED;
   }
   if (typeof value !== 'object' || value === null) return value;
   if (value instanceof Error) return { redacted: true };
@@ -142,5 +154,14 @@ export const log = {
   },
   error(event: string, context?: LogContext): void {
     write('error', event, context);
+  },
+  unsafeDiagnostic(event: string, context: () => LogContext): void {
+    if (
+      typeof __ASYLIA_HW_TREZOR_UNSAFE_DIAGNOSTICS__ === 'undefined' ||
+      __ASYLIA_HW_TREZOR_UNSAFE_DIAGNOSTICS__ !== true
+    ) {
+      return;
+    }
+    console.info(`${PREFIX} unsafe-diagnostic ${event}`, context());
   },
 };

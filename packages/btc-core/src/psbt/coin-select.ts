@@ -29,8 +29,8 @@
  * no-change topology fits — the algorithm tries that path before
  * declaring `INSUFFICIENT_FUNDS`. Without this fallback a vault
  * with a single 10 000 sat UTXO could not spend the result of the
- * "Max" button at the lowest fee tier (10 000 < 9830 + 174, but
- * 10 000 ≥ 9830 + 143).
+ * "Max" button at the lowest fee tier (10 000 < 9830 + 195, but
+ * 10 000 ≥ 9830 + 152).
  */
 import type { Utxo } from './types';
 
@@ -46,11 +46,12 @@ export const DEFAULT_DUST_THRESHOLD_SATS = 546;
  *   - Each P2WSH output (8-byte amount + 34-byte script + length byte) ≈ 43 vbytes
  *   - Each P2WPKH output (8-byte amount + 22-byte script + length byte) ≈ 31 vbytes
  *
- * The default `64` covers a typical "one external recipient + one
- * change output" topology where both are P2WPKH. When the recipient
- * is a P2WSH (multisig), bump `fixedVbytes` to ~76 instead.
+ * The default `85` covers Asylia's typical "one external native
+ * SegWit recipient + one P2WSH multisig change output" topology.
+ * Override `fixedVbytes` for batched sends or non-standard recipient
+ * output scripts.
  */
-export const DEFAULT_FIXED_VBYTES = 64;
+export const DEFAULT_FIXED_VBYTES = 85;
 
 /**
  * vbytes per `wsh(sortedmulti(M, ...))` input. Computed from
@@ -69,15 +70,11 @@ export const DEFAULT_PER_INPUT_VBYTES = 110;
  * vbytes a single change output adds to the transaction footprint.
  * Used when the algorithm needs to switch from a "with change" to a
  * "no change" topology mid-selection (dust fold or the no-change
- * fallback below). The default value mirrors a P2WPKH change output
- * (~31 vbytes), which matches `DEFAULT_FIXED_VBYTES`'s assumption.
- *
- * For a P2WSH multisig change output (Asylia's default vault layout)
- * this should be ~43 vbytes. The discrepancy is small enough that
- * the default produces a fee that is still safely above the network
- * minimum; pass an explicit value when an exact figure matters.
+ * fallback below). The default value mirrors Asylia's native P2WSH
+ * multisig change output (~43 vbytes). Pass an explicit value when
+ * using a different change policy.
  */
-export const DEFAULT_CHANGE_OUTPUT_VBYTES = 31;
+export const DEFAULT_CHANGE_OUTPUT_VBYTES = 43;
 
 /** Inputs accepted by {@link selectCoinsLargestFirst}. */
 export type CoinSelectInput = {
@@ -92,7 +89,7 @@ export type CoinSelectInput = {
   /**
    * Fixed transaction overhead in vbytes (header + outputs).
    * Defaults to {@link DEFAULT_FIXED_VBYTES} which assumes one
-   * recipient + change. Pass a larger value for batched sends.
+   * recipient + P2WSH change. Pass a larger value for batched sends.
    */
   fixedVbytes?: number;
   /** Dust threshold in satoshis; defaults to {@link DEFAULT_DUST_THRESHOLD_SATS}. */
@@ -251,8 +248,8 @@ export type FixedFeeCoinSelectInput = {
   perInputVbytes?: number;
   /**
    * Fixed transaction overhead in vbytes (header + outputs).
-   * Defaults to {@link DEFAULT_FIXED_VBYTES}; callers with P2WSH
-   * change should pass an adjusted value.
+   * Defaults to {@link DEFAULT_FIXED_VBYTES}, the single-recipient
+   * P2WSH-change parameter set.
    */
   fixedVbytes?: number;
   /** Dust threshold in satoshis; defaults to {@link DEFAULT_DUST_THRESHOLD_SATS}. */
