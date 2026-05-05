@@ -168,6 +168,10 @@ describe('btc-core property/fuzz invariants', () => {
         expect(rateResult.changeSats).toBeGreaterThanOrEqual(0);
         expect(rateResult.changeSats === 0 || rateResult.changeSats >= dustThresholdSats)
           .toBe(true);
+        expect(rateResult.absorbedDustSats).toBeGreaterThanOrEqual(0);
+        if (rateResult.changeSats > 0) {
+          expect(rateResult.absorbedDustSats).toBe(0);
+        }
         expect(rateResult.selected).toEqual(largestFirstPrefix(utxos, rateResult.selected.length));
         if (rateResult.changeSats > 0) {
           expect(rateResult.feeSats).toBe(
@@ -196,13 +200,15 @@ describe('btc-core property/fuzz invariants', () => {
       if (fixedResult.ok) {
         const selectedSum = totalValue(fixedResult.selected);
         expect(selectedSum).toBe(targetSats + fixedResult.feeSats + fixedResult.changeSats);
-        expect(fixedResult.feeSats).toBe(fixedFeeSats);
+        expect(fixedResult.feeSats).toBe(fixedFeeSats + fixedResult.absorbedDustSats);
+        expect(fixedResult.absorbedDustSats).toBeGreaterThanOrEqual(0);
+        if (fixedResult.absorbedDustSats > 0) {
+          expect(fixedResult.absorbedDustSats).toBeLessThan(dustThresholdSats);
+          expect(fixedResult.changeSats).toBe(0);
+        }
         expect(fixedResult.changeSats === 0 || fixedResult.changeSats >= dustThresholdSats)
           .toBe(true);
         expect(fixedResult.selected).toEqual(largestFirstPrefix(utxos, fixedResult.selected.length));
-      } else if (fixedResult.reason === 'DUST_CHANGE') {
-        expect(fixedResult.available).toBeGreaterThanOrEqual(targetSats + fixedFeeSats);
-        expect(fixedResult.required).toBe(targetSats + fixedFeeSats + dustThresholdSats);
       }
     }
   });

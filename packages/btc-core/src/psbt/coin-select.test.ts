@@ -45,6 +45,7 @@ describe('selectCoinsLargestFirst', () => {
       feeSats: 300,
       changeSats: 0,
       vbytes: 152,
+      absorbedDustSats: 105,
     });
   });
 
@@ -93,6 +94,7 @@ describe('selectCoinsLargestFirst', () => {
       feeSats: 170,
       changeSats: 0,
       vbytes: 152,
+      absorbedDustSats: 0,
     });
   });
 
@@ -155,7 +157,7 @@ describe('selectCoinsLargestFirstFixedFee', () => {
     });
   });
 
-  it('rejects dust change instead of changing the explicit fee', () => {
+  it('folds fixed-fee dust change into the final fee', () => {
     const result = selectCoinsLargestFirstFixedFee({
       utxos: [utxo('aa', 0, 10_000)],
       targetSats: 9_000,
@@ -165,10 +167,12 @@ describe('selectCoinsLargestFirstFixedFee', () => {
     });
 
     expect(result).toEqual({
-      ok: false,
-      reason: 'DUST_CHANGE',
-      available: 10_000,
-      required: 10_246,
+      ok: true,
+      selected: [utxo('aa', 0, 10_000)],
+      feeSats: 1_000,
+      changeSats: 0,
+      vbytes: 152,
+      absorbedDustSats: 300,
     });
   });
 
@@ -187,6 +191,7 @@ describe('selectCoinsLargestFirstFixedFee', () => {
       feeSats: 1_000,
       changeSats: 0,
       vbytes: 152,
+      absorbedDustSats: 0,
     });
   });
 

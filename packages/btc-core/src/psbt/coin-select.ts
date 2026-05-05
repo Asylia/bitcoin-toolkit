@@ -119,6 +119,11 @@ export type CoinSelectResult =
       changeSats: number;
       /** Total vbytes the assembled transaction is expected to consume. */
       vbytes: number;
+      /**
+       * Positive sub-dust change that was intentionally folded into
+       * the network fee instead of becoming an invalid output.
+       */
+      absorbedDustSats: number;
     }
   | { ok: false; reason: 'EMPTY_UTXOS'; available: 0; required: number }
   | { ok: false; reason: 'INSUFFICIENT_FUNDS'; available: number; required: number };
@@ -193,6 +198,7 @@ export function selectCoinsLargestFirst(
           feeSats: noChangeFee,
           changeSats: 0,
           vbytes: noChangeVbytes,
+          absorbedDustSats: Math.max(0, remainder),
         };
       }
       return {
@@ -201,6 +207,7 @@ export function selectCoinsLargestFirst(
         feeSats,
         changeSats: remainder,
         vbytes,
+        absorbedDustSats: 0,
       };
     }
 
@@ -220,6 +227,7 @@ export function selectCoinsLargestFirst(
         feeSats: selectedSum - targetSats,
         changeSats: 0,
         vbytes: noChangeVbytes,
+        absorbedDustSats: 0,
       };
     }
   }
@@ -269,10 +277,15 @@ export type FixedFeeCoinSelectResult =
       feeSats: number;
       changeSats: number;
       vbytes: number;
+      /**
+       * Positive sub-dust change that was intentionally folded into
+       * the network fee instead of becoming an invalid output.
+       */
+      absorbedDustSats: number;
     }
   | {
       ok: false;
-      reason: 'EMPTY_UTXOS' | 'INSUFFICIENT_FUNDS' | 'DUST_CHANGE';
+      reason: 'EMPTY_UTXOS' | 'INSUFFICIENT_FUNDS';
       available: number;
       required: number;
     };
@@ -281,10 +294,9 @@ export type FixedFeeCoinSelectResult =
  * Largest-first selection when the caller supplies an exact network
  * fee budget instead of a sat/vB rate.
  *
- * Unlike the rate-based selector, a sub-dust positive remainder cannot
- * be silently folded into the fee without changing the operator's
- * explicit fee target. In that case the function returns `DUST_CHANGE`
- * and lets the UI ask for a different amount or fee.
+ * A sub-dust positive remainder is folded into the fee and surfaced
+ * through `absorbedDustSats`, keeping the resulting PSBT valid while
+ * letting the wallet UI explain the final fee to the operator.
  */
 export function selectCoinsLargestFirstFixedFee(
   input: FixedFeeCoinSelectInput,
@@ -319,7 +331,6 @@ export function selectCoinsLargestFirstFixedFee(
 
   const selected: Utxo[] = [];
   let selectedSum = 0;
-  let dustAvailable = 0;
 
   for (const utxo of sorted) {
     selected.push(utxo);
@@ -340,6 +351,7 @@ export function selectCoinsLargestFirstFixedFee(
         feeSats,
         changeSats: 0,
         vbytes: noChangeVbytes,
+        absorbedDustSats: 0,
       };
     }
     if (changeSats >= dustThresholdSats) {
@@ -349,20 +361,20 @@ export function selectCoinsLargestFirstFixedFee(
         feeSats,
         changeSats,
         vbytes: withChangeVbytes,
+        absorbedDustSats: 0,
       };
     }
-    dustAvailable = selectedSum;
+    return {
+      ok: true,
+      selected,
+      feeSats: feeSats + changeSats,
+      changeSats: 0,
+      vbytes: noChangeVbytes,
+      absorbedDustSats: changeSats,
+    };
   }
 
   const available = sorted.reduce((sum, utxo) => sum + utxo.valueSats, 0);
-  if (available >= targetSats + feeSats) {
-    return {
-      ok: false,
-      reason: 'DUST_CHANGE',
-      available: dustAvailable || available,
-      required: targetSats + feeSats + dustThresholdSats,
-    };
-  }
   return {
     ok: false,
     reason: 'INSUFFICIENT_FUNDS',

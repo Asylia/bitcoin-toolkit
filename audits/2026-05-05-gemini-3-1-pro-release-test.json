@@ -1,0 +1,45 @@
+{
+  "auditId": "gemini-3-1-pro-release-test-2026-05-05",
+  "date": "2026-05-05",
+  "title": "Security audit: UI updates, marketing copy, dust handling, and fee buffers",
+  "target": "main",
+  "status": "passed",
+  "branch": "release/test",
+  "baseRef": "main",
+  "headRef": "release/test",
+  "commitRange": "main...release/test",
+  "scope": [
+    "E2E test RLS session caching",
+    "Bitcoin network fee buffer addition",
+    "Coin selection dust absorption",
+    "Marketing copy and localization updates",
+    "UI design system updates"
+  ],
+  "modelReviews": [
+    {
+      "provider": "Google",
+      "family": "Gemini",
+      "model": "Gemini 3.1 Pro",
+      "version": "gemini-3.1-pro",
+      "role": "Primary security-first release audit",
+      "status": "completed"
+    }
+  ],
+  "findingsSummary": {
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 1,
+    "info": 2,
+    "blockingFindings": false,
+    "unresolvedCriticalOrHigh": false
+  },
+  "reportPath": "docs/audits/reports/2026-05-05-gemini-3-1-pro-release-test.md",
+  "publicReportPath": "docs/audits/public/2026-05-05-gemini-3-1-pro-release-test.md",
+  "marketingPath": "apps/marketing/content/audits/2026-05-05-gemini-3-1-pro-release-test.md",
+  "publicSummary": "Security audit by Gemini 3.1 Pro covering UI updates, marketing copy, coin selection dust handling, and network fee buffers. Found zero critical/high/medium findings. One low finding related to E2E test session caching (non-production). Two informational findings related to fee UX improvements. No release blocker.",
+  "publication": {
+    "safeForPublic": true,
+    "summary": "This report covers UI, test infrastructure, and fee calculation details only. It does not disclose secrets, private user data, descriptors, xpub sets, PSBT base64, UTXO arrays, or operational tokens."
+  }
+}
