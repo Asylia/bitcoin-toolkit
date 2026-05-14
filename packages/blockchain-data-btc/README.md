@@ -123,8 +123,8 @@ const tip = await chainData.getTipHeight();
 const broadcast = await chainData.broadcastTransaction(rawTxHex, expectedTxid);
 ```
 
-`balance_sats` is confirmed balance. `pending_sats` is net unconfirmed inflow
-clamped at zero when the provider can expose it cleanly.
+`balance_sats` is confirmed balance. `pending_sats` is the signed net
+unconfirmed mempool delta when the provider can expose it cleanly.
 
 ## Public API
 

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ProviderRateLimitError, ProviderId } from '../types';
+import { ProviderConfigurationError, ProviderRateLimitError, ProviderId } from '../types';
 import { CoinbaseProvider } from './coinbase';
 import { CoinGeckoProvider } from './coingecko';
 import { KrakenProvider } from './kraken';
@@ -120,7 +120,7 @@ describe('fiat rates providers', () => {
       .rejects.toBeInstanceOf(ProviderRateLimitError);
   });
 
-  it('trips Coinbase cooldowns and releases throttle permits on quota responses', async () => {
+  it('maps Coinbase 403 responses to configuration errors without cooldown', async () => {
     fetchMock.mockResolvedValueOnce(new Response('quota', {
       status: 403,
       headers: { 'retry-after': '3' },
@@ -134,12 +134,10 @@ describe('fiat rates providers', () => {
 
     provider.bindThrottle(throttle as never);
 
-    await expect(provider.fetchFiatRates(['USD'])).rejects.toMatchObject({
-      name: 'ProviderRateLimitError',
-      retryAfterMs: 3_000,
-    });
+    await expect(provider.fetchFiatRates(['USD']))
+      .rejects.toBeInstanceOf(ProviderConfigurationError);
     expect(throttle.acquire).toHaveBeenCalledWith(25);
-    expect(throttle.tripCooldown).toHaveBeenCalledWith(3_000);
+    expect(throttle.tripCooldown).not.toHaveBeenCalled();
     expect(throttle.release).toHaveBeenCalledTimes(1);
   });
 

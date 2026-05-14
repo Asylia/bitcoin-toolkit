@@ -103,23 +103,24 @@ export interface EsploraTransaction {
  * {@link NormalizedAddressBalance}.
  *
  * `chain_stats` carries confirmed history; `mempool_stats` carries the
- * unconfirmed view. Pending is `funded - spent` clamped at zero so an
- * unconfirmed *outgoing* spend never produces a negative number — the
- * negative case is intentionally absorbed because the spend has not
- * yet shifted any confirmed UTXO out of `chain_stats`.
+ * unconfirmed view. Pending is the signed `funded - spent` mempool
+ * delta. Negative values are important: they are how an unconfirmed
+ * outgoing spend removes a confirmed input from the wallet-level total
+ * before the transaction is mined.
  */
 export function mapEsploraAddress(
   data: EsploraAddressResponse,
 ): NormalizedAddressBalance {
   const mempoolFunded = data.mempool_stats?.funded_txo_sum ?? 0;
   const mempoolSpent = data.mempool_stats?.spent_txo_sum ?? 0;
-  const pending = Math.max(0, mempoolFunded - mempoolSpent);
+  const mempoolTxCount = data.mempool_stats?.tx_count ?? 0;
+  const pending = mempoolFunded - mempoolSpent;
   return {
     address: data.address,
     balance_sats: data.chain_stats.funded_txo_sum - data.chain_stats.spent_txo_sum,
     pending_sats: pending,
-    total_received_sats: data.chain_stats.funded_txo_sum,
-    tx_count: data.chain_stats.tx_count,
+    total_received_sats: data.chain_stats.funded_txo_sum + mempoolFunded,
+    tx_count: data.chain_stats.tx_count + mempoolTxCount,
   };
 }
 

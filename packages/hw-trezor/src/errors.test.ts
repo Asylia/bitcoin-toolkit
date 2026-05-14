@@ -43,6 +43,12 @@ describe('Trezor error normalisation', () => {
     expect(fromTrezorFailure({ payload: { error: 'firmware too old' } })).toMatchObject({
       code: 'firmware_too_old',
     });
+    expect(fromTrezorFailure({ payload: { error: 'Forbidden key path' } })).toMatchObject({
+      code: 'message_signing_forbidden_path',
+    });
+    expect(fromTrezorFailure({ payload: { error: 'Invalid multisig parameters' } })).toMatchObject({
+      code: 'invalid_multisig',
+    });
   });
 
   it('infers device-specific thrown errors from free-form messages', () => {

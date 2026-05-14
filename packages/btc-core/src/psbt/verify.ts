@@ -33,12 +33,12 @@
  * after every device call is the sturdy guarantee that no broken
  * partial sig ever lands in the proposal store.
  */
-import { Buffer } from 'buffer';
+import { Buffer } from 'node:buffer';
 import * as ecc from '@bitcoinerlab/secp256k1';
-import { sha256 } from '@noble/hashes/sha256';
+import { Transaction } from 'bitcoinjs-lib';
 
-import { reverseTxidHex } from './build';
-import { inspectPsbtV2, type InspectedPsbt } from './inspect';
+import { inspectPsbtV2, type InspectedPsbt } from './inspect.ts';
+import { reverseTxidHex } from './txid.ts';
 
 /** Errors raised by the verification helpers. */
 export class PsbtVerifyError extends Error {
@@ -71,69 +71,25 @@ export function computeBip143SighashAll(
     );
   }
   const target = inspected.inputs[inputIndex]!;
-
-  const version = inspected.txVersion >>> 0;
-  // PSBT v2 either ships a fallback locktime or treats it as 0.
-  // Asylia builds always use 0 — mirror that here so a missing
-  // value lines up with what bitcoinjs-lib would write into the
-  // unsigned tx.
-  const locktime = (inspected.fallbackLocktime ?? 0) >>> 0;
-
-  // hashPrevouts = double-SHA256( concat( reverse(txid_le) + vout_le ) )
-  // The PSBT inspector already returns txids in big-endian display
-  // order, so we flip them back to LE here — that's what the network
-  // serialises into the outpoint bytes the sighash hashes over.
-  const prevoutsBuf = Buffer.concat(
-    inspected.inputs.map((inp) =>
-      Buffer.concat([
-        Buffer.from(reverseTxidHex(inp.txid), 'hex'),
-        u32le(inp.vout),
-      ]),
-    ),
+  const tx = new Transaction();
+  tx.version = inspected.txVersion;
+  tx.locktime = inspected.fallbackLocktime ?? 0;
+  for (const input of inspected.inputs) {
+    tx.addInput(
+      new Uint8Array(Buffer.from(reverseTxidHex(input.txid), 'hex')),
+      input.vout,
+      input.sequence ?? 0xffffffff,
+    );
+  }
+  for (const output of inspected.outputs) {
+    tx.addOutput(new Uint8Array(output.scriptPubKey), BigInt(output.amountSats));
+  }
+  return tx.hashForWitnessV0(
+    inputIndex,
+    new Uint8Array(target.witnessScript),
+    BigInt(target.valueSats),
+    Transaction.SIGHASH_ALL,
   );
-  const hashPrevouts = doubleSha256(prevoutsBuf);
-
-  // hashSequence = double-SHA256( concat(seq_le for each input) )
-  // SIGHASH_ALL hashes every input's sequence; missing sequence
-  // values fall back to 0xffffffff (final).
-  const sequenceBuf = Buffer.concat(
-    inspected.inputs.map((inp) => u32le(inp.sequence ?? 0xffffffff)),
-  );
-  const hashSequence = doubleSha256(sequenceBuf);
-
-  // hashOutputs = double-SHA256( concat(value_le + varint(scriptlen) + script) )
-  const outputsBuf = Buffer.concat(
-    inspected.outputs.map((out) =>
-      Buffer.concat([
-        u64le(out.amountSats),
-        varint(out.scriptPubKey.length),
-        Buffer.from(out.scriptPubKey),
-      ]),
-    ),
-  );
-  const hashOutputs = doubleSha256(outputsBuf);
-
-  const outpoint = Buffer.concat([
-    Buffer.from(reverseTxidHex(target.txid), 'hex'),
-    u32le(target.vout),
-  ]);
-  const witnessScript = Buffer.from(target.witnessScript);
-  const sequence = target.sequence ?? 0xffffffff;
-
-  const preimage = Buffer.concat([
-    u32le(version),
-    hashPrevouts,
-    hashSequence,
-    outpoint,
-    varint(witnessScript.length),
-    witnessScript,
-    u64le(target.valueSats),
-    u32le(sequence),
-    hashOutputs,
-    u32le(locktime),
-    u32le(0x01), // SIGHASH_ALL
-  ]);
-  return doubleSha256(preimage);
 }
 
 /**
@@ -235,37 +191,6 @@ export function findSegwitV0SignatureOwnerForPsbt(
 // Internals
 // =============================================================================
 
-function u32le(value: number): Buffer {
-  const buf = Buffer.alloc(4);
-  buf.writeUInt32LE(value >>> 0, 0);
-  return buf;
-}
-
-function u64le(value: number): Buffer {
-  const buf = Buffer.alloc(8);
-  buf.writeBigUInt64LE(BigInt(value), 0);
-  return buf;
-}
-
-function varint(value: number): Buffer {
-  if (value < 0xfd) return Buffer.from([value]);
-  if (value <= 0xffff) {
-    const buf = Buffer.alloc(3);
-    buf[0] = 0xfd;
-    buf.writeUInt16LE(value, 1);
-    return buf;
-  }
-  if (value <= 0xffff_ffff) {
-    const buf = Buffer.alloc(5);
-    buf[0] = 0xfe;
-    buf.writeUInt32LE(value, 1);
-    return buf;
-  }
-  // PSBT inputs / outputs never push >2^32 bytes through here, so
-  // a 0xff varint would indicate a malformed payload upstream.
-  throw new PsbtVerifyError(`varint value ${value} exceeds 32 bits.`);
-}
-
 function looksLikeDerSignature(bytes: Uint8Array): boolean {
   if (bytes.length < 8) return false;
   if (bytes[0] !== 0x30) return false;
@@ -282,10 +207,6 @@ function looksLikeDerSignature(bytes: Uint8Array): boolean {
   const sLength = bytes[sTagIndex + 1];
   if (sLength === undefined || sLength === 0) return false;
   return sTagIndex + 2 + sLength === bytes.length;
-}
-
-function doubleSha256(data: Buffer): Uint8Array {
-  return sha256(sha256(data));
 }
 
 /**

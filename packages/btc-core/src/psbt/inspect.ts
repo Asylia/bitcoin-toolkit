@@ -40,13 +40,13 @@
  * default sighash, which matches what the BIP-380 sortedmulti
  * descriptor expects when the output is finalised.
  */
-import { Buffer } from 'buffer';
+import { Buffer } from 'node:buffer';
 import { PsbtV2 } from '@caravan/psbt';
 import { address as bitcoinAddress } from 'bitcoinjs-lib';
 
-import { networkOf } from '../network';
-import type { BitcoinNetwork } from '../types';
-import { reverseTxidHex } from './build';
+import { networkOf } from '../network.ts';
+import type { BitcoinNetwork } from '../types.ts';
+import { reverseTxidHex } from './txid.ts';
 
 /** Errors raised by the inspect / combine helpers. */
 export class PsbtInspectError extends Error {
@@ -93,6 +93,12 @@ export type InspectedPsbtInput = {
   vout: number;
   valueSats: number;
   scriptPubKey: Uint8Array;
+  /**
+   * Full previous transaction when the PSBT carries `PSBT_IN_NON_WITNESS_UTXO`.
+   * Hardware wallets such as Trezor may request this as a reference tx even
+   * for SegWit inputs.
+   */
+  nonWitnessUtxo?: Uint8Array | null;
   witnessScript: Uint8Array;
   bip32Derivation: readonly PsbtBip32Derivation[];
   partialSigs: readonly PsbtPartialSig[];
@@ -129,6 +135,9 @@ export function inspectPsbtV2(psbtBase64: string): InspectedPsbt {
   const txids = psbt.PSBT_IN_PREVIOUS_TXID;
   const vouts = psbt.PSBT_IN_OUTPUT_INDEX;
   const witnessUtxos = psbt.PSBT_IN_WITNESS_UTXO;
+  const nonWitnessUtxos =
+    (psbt as unknown as { PSBT_IN_NON_WITNESS_UTXO?: readonly (string | undefined)[] })
+      .PSBT_IN_NON_WITNESS_UTXO ?? [];
   const witnessScripts = psbt.PSBT_IN_WITNESS_SCRIPT;
   const bip32InAll = psbt.PSBT_IN_BIP32_DERIVATION;
   const partialSigsAll = psbt.PSBT_IN_PARTIAL_SIG;
@@ -168,6 +177,7 @@ export function inspectPsbtV2(psbtBase64: string): InspectedPsbt {
       vout,
       valueSats: amountSats,
       scriptPubKey,
+      nonWitnessUtxo: nonWitnessUtxos[i] ? hexToBytes(nonWitnessUtxos[i]!) : null,
       witnessScript: hexToBytes(witnessScriptHex),
       // Inputs use PSBT_IN_BIP32_DERIVATION (keytype 0x06).
       bip32Derivation: parseBip32DerivationList(bip32InAll[i] ?? [], 0x06),
@@ -304,7 +314,7 @@ export function addressFromScript(
   network: BitcoinNetwork,
 ): string | null {
   try {
-    return bitcoinAddress.fromOutputScript(Buffer.from(script), networkOf(network));
+    return bitcoinAddress.fromOutputScript(new Uint8Array(script), networkOf(network));
   } catch {
     return null;
   }

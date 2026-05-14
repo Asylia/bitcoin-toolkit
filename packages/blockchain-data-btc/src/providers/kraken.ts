@@ -14,6 +14,7 @@
  */
 import type { ProviderThrottle } from '../rate-limiter';
 import {
+  ProviderConfigurationError,
   ProviderId,
   ProviderRateLimitError,
   type FiatRatesSnapshot,
@@ -68,12 +69,18 @@ export class KrakenProvider implements Provider {
       const response = await fetch(url, {
         headers: { Accept: 'application/json' },
       });
-      if (response.status === 429 || response.status === 403) {
+      if (response.status === 429) {
         const retryAfterMs = parseRetryAfterMs(response.headers.get('retry-after'));
         if (this.throttle) this.throttle.tripCooldown(retryAfterMs ?? undefined);
         throw new ProviderRateLimitError(
           `Kraken returned ${response.status} (rate-limited).`,
           retryAfterMs ?? 0,
+        );
+      }
+      if (response.status === 403) {
+        throw new ProviderConfigurationError(
+          'Kraken returned 403 (configuration or permission denied).',
+          403,
         );
       }
       return response;

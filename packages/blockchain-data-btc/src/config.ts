@@ -17,7 +17,7 @@
  *     addresses) that would otherwise stay under the burst limit
  *     yet still exhaust the documented hourly / minute budgets.
  *   - `coolDownMs` is the baseline cooldown applied when a provider
- *     answers with HTTP 429 / 403 *without* an explicit `Retry-After`
+ *     answers with HTTP 429 *without* an explicit `Retry-After`
  *     header. The gate honours an explicit hint when one is present.
  *
  * When a provider gets paid credentials, lift its budget at
@@ -27,7 +27,7 @@ import { ProviderId } from './types';
 
 /**
  * Throttling budget for one provider. The {@link RateLimiterService}
- * gate only releases a permit when *all four* limits are satisfied:
+ * gate only releases a permit when every limit is satisfied:
  * the sliding window has spare capacity, the in-flight slot is open,
  * the minimum inter-request interval has elapsed, and the explicit
  * cooldown (if any) has expired.
@@ -41,7 +41,7 @@ export interface ProviderRateLimit {
   minIntervalMs: number;
   /** Max in-flight requests at any given moment. */
   maxConcurrent: number;
-  /** Default cooldown applied on a 429/403 without `Retry-After`. */
+  /** Default cooldown applied on a 429 without `Retry-After`. */
   coolDownMs: number;
 }
 

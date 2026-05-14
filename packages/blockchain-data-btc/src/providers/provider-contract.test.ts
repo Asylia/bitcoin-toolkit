@@ -35,6 +35,7 @@ describe('provider contract suite', () => {
     );
     await expect(provider.fetchRawTransaction(FIXTURE_TXID)).resolves.toBe(FIXTURE_RAW_TX_HEX);
     await expect(provider.broadcastTransaction(FIXTURE_RAW_TX_HEX)).resolves.toBe(FIXTURE_TXID);
+    expect(provider.roles).not.toContain('read-fiat-rates');
     await expect(provider.fetchFiatRates(['USD'])).resolves.toMatchObject({
       rates: { USD: 64_000 },
     });

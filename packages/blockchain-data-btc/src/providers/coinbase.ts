@@ -16,6 +16,7 @@
  */
 import type { ProviderThrottle } from '../rate-limiter';
 import {
+  ProviderConfigurationError,
   ProviderId,
   ProviderRateLimitError,
   type FiatRatesSnapshot,
@@ -57,8 +58,8 @@ export class CoinbaseProvider implements Provider {
   /**
    * One throttled HTTP call. Acquires a permit from the gate, fires
    * the fetch, releases on completion or error. Throws
-   * {@link ProviderRateLimitError} on 429 / 403 (or on a throttle
-   * deadline elapsing) so the service walks to the next provider.
+   * {@link ProviderRateLimitError} on 429 (or on a throttle deadline
+   * elapsing) and {@link ProviderConfigurationError} on 403.
    */
   private async fetchOk(url: string): Promise<Response> {
     if (this.throttle) {
@@ -81,12 +82,18 @@ export class CoinbaseProvider implements Provider {
           'User-Agent': 'asylia-blockchain-data-btc',
         },
       });
-      if (response.status === 429 || response.status === 403) {
+      if (response.status === 429) {
         const retryAfterMs = parseRetryAfterMs(response.headers.get('retry-after'));
         if (this.throttle) this.throttle.tripCooldown(retryAfterMs ?? undefined);
         throw new ProviderRateLimitError(
           `Coinbase returned ${response.status} (rate-limited).`,
           retryAfterMs ?? 0,
+        );
+      }
+      if (response.status === 403) {
+        throw new ProviderConfigurationError(
+          'Coinbase returned 403 (configuration or permission denied).',
+          403,
         );
       }
       return response;

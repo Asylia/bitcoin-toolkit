@@ -29,7 +29,7 @@ import type {
   NormalizedAddressBalance,
   ProviderRole,
 } from '../types';
-import { ProviderId, ProviderRateLimitError } from '../types';
+import { ProviderConfigurationError, ProviderId, ProviderRateLimitError } from '../types';
 import {
   type BlockchainDotComResponse,
   type BlockchainDotComUnspentResponse,
@@ -97,8 +97,9 @@ export class BlockchainDotComProvider implements Provider {
   /**
    * One throttled HTTP call. Acquires a permit from the gate,
    * fires the fetch, releases on completion or error. Throws
-   * {@link ProviderRateLimitError} on 429 / 403 (or on a throttle
-   * deadline elapsing) so the service walks to the next provider.
+   * {@link ProviderRateLimitError} on 429 (or on a throttle deadline
+   * elapsing) and {@link ProviderConfigurationError} on 403 so auth /
+   * account-policy failures are not masked as quota pressure.
    */
   private async fetchOk(url: string, init?: RequestInit): Promise<Response> {
     if (this.throttle) {
@@ -113,12 +114,18 @@ export class BlockchainDotComProvider implements Provider {
     try {
       debugLog(this.devMode, `[BLOCKCHAIN_DOT_COM] ${init?.method ?? 'GET'} ${url}`);
       const response = await fetch(url, init);
-      if (response.status === 429 || response.status === 403) {
+      if (response.status === 429) {
         const retryAfterMs = parseRetryAfterMs(response.headers.get('retry-after'));
         if (this.throttle) this.throttle.tripCooldown(retryAfterMs ?? undefined);
         throw new ProviderRateLimitError(
           `Blockchain.com returned ${response.status} (rate-limited).`,
           retryAfterMs ?? 0,
+        );
+      }
+      if (response.status === 403) {
+        throw new ProviderConfigurationError(
+          'Blockchain.com returned 403 (configuration or permission denied).',
+          403,
         );
       }
       return response;

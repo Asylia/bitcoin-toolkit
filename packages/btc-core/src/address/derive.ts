@@ -24,18 +24,18 @@
 import { payments } from 'bitcoinjs-lib';
 import type { Payment } from 'bitcoinjs-lib';
 
-import { bip32 } from '../crypto/ecc';
+import { bip32 } from '../crypto/ecc.ts';
 import {
   describeNonMainnetXpub,
   detectExtendedPubkeyNetwork,
   toCanonicalXpub,
-} from '../descriptor/normalize';
-import { networkOf } from '../network';
+} from '../descriptor/normalize.ts';
+import { networkOf } from '../network.ts';
 import type {
   DeriveWshSortedMultiAddressBatchInput,
   DeriveWshSortedMultiAddressInput,
   WshSortedMultiAddressEntry,
-} from '../types';
+} from '../types.ts';
 
 /** Errors raised by address derivation. */
 export class AddressDeriveError extends Error {

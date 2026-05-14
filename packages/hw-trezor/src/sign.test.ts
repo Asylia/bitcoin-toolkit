@@ -48,6 +48,8 @@ const PUBKEY = Uint8Array.from([0x02, ...Array.from({ length: 32 }, (_, i) => i 
 const OTHER_PUBKEY = Uint8Array.from([0x03, ...Array.from({ length: 32 }, (_, i) => i + 1)]);
 const TXID = '11'.repeat(32);
 const PUBKEY_HEX = '02' + Array.from({ length: 32 }, (_, i) => (i + 1).toString(16).padStart(2, '0')).join('');
+const DER_SIGNATURE_HEX =
+  '30440220010203040506070809000102030405060708090001020304050607080900010202200102030405060708090001020304050607080900010203040506070809000102';
 
 let originalDebugEnv: string | undefined;
 
@@ -77,7 +79,7 @@ describe('signWshSortedMultiPsbt', () => {
     mocks.signTransaction.mockResolvedValue({
       success: true,
       payload: {
-        signatures: ['30440220'],
+        signatures: [DER_SIGNATURE_HEX],
         serializedTx: '00',
       },
     });
@@ -165,6 +167,25 @@ describe('signWshSortedMultiPsbt', () => {
     });
   });
 
+  it('does not inject local reference transactions into the Trezor request', async () => {
+    mocks.inspectPsbtV2.mockReturnValue({
+      ...inspectedPsbt(),
+      inputs: [
+        {
+          ...inspectedPsbt().inputs[0]!,
+          txid: 'b6ad8824cdda67568159945411d8737f4f2b758ce8afa9e5f613c0985acc9bd5',
+          nonWitnessUtxo: hexToBytes('00'),
+        },
+      ],
+    });
+
+    await expect(signWshSortedMultiPsbt(input())).resolves.toMatchObject({ ok: true });
+
+    expect(mocks.signTransaction).toHaveBeenCalledWith(
+      expect.not.objectContaining({ refTxs: expect.anything() }),
+    );
+  });
+
   it('keeps runtime debug signing logs free of spend graph material', async () => {
     if ((globalThis as GlobalWithProcess).process?.env) {
       (globalThis as GlobalWithProcess).process!.env!.ASYLIA_HW_DEBUG = '1';
@@ -249,6 +270,26 @@ describe('signWshSortedMultiPsbt', () => {
     });
   });
 
+  it('accepts Trezor signatures with an existing SIGHASH_ALL byte and stores DER only', async () => {
+    mocks.signTransaction.mockResolvedValueOnce({
+      success: true,
+      payload: { signatures: [`${DER_SIGNATURE_HEX}01`] },
+    });
+
+    await expect(signWshSortedMultiPsbt(input())).resolves.toMatchObject({ ok: true });
+
+    expect(mocks.verifySegwitV0SignatureAgainstPubkey).toHaveBeenCalledWith(
+      expect.anything(),
+      0,
+      PUBKEY,
+      hexToBytes(`${DER_SIGNATURE_HEX}01`),
+    );
+    expect(mocks.addPartialSignaturesToPsbt).toHaveBeenCalledWith(
+      'unsigned-psbt',
+      [expect.objectContaining({ signature: hexToBytes(DER_SIGNATURE_HEX) })],
+    );
+  });
+
   it('normalises thrown signing and merge failures', async () => {
     mocks.signTransaction.mockRejectedValueOnce(new Error('popup crashed'));
     await expect(signWshSortedMultiPsbt(input())).resolves.toMatchObject({ ok: false });
@@ -299,13 +340,13 @@ describe('signWshSortedMultiPsbt', () => {
       expect.any(Object),
       0,
       PUBKEY,
-      Uint8Array.from([0x30, 0x44, 0x02, 0x20, 0x01]),
+      hexToBytes(`${DER_SIGNATURE_HEX}01`),
     );
     expect(mocks.addPartialSignaturesToPsbt).toHaveBeenCalledWith('unsigned-psbt', [
       {
         inputIndex: 0,
         pubkey: PUBKEY,
-        signature: Uint8Array.from([0x30, 0x44, 0x02, 0x20]),
+        signature: hexToBytes(DER_SIGNATURE_HEX),
       },
     ]);
   });
@@ -367,7 +408,7 @@ describe('signWshSortedMultiPsbt', () => {
     mocks.signTransaction.mockResolvedValueOnce({
       success: true,
       payload: {
-        signatures: ['30440220', '30450220'],
+        signatures: [DER_SIGNATURE_HEX, DER_SIGNATURE_HEX],
       },
     });
 
@@ -459,4 +500,12 @@ function pathToAddressN(path: string): number[] {
     const value = Number.parseInt(part.replace(/['h]/g, ''), 10);
     return hardened ? value + 0x80000000 : value;
   });
+}
+
+function hexToBytes(value: string): Uint8Array {
+  const out = new Uint8Array(value.length / 2);
+  for (let i = 0; i < out.length; i += 1) {
+    out[i] = Number.parseInt(value.slice(i * 2, i * 2 + 2), 16);
+  }
+  return out;
 }

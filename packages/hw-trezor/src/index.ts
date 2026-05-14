@@ -24,6 +24,14 @@ export { initTrezor, type InitOptions } from './init';
 export { exportTrezorRoot } from './xpub';
 export { displayWshSortedMultiAddress } from './address';
 export {
+  signAuthProofWithTrezor,
+  signAuthChallengeWithTrezor,
+  type SignAuthProofInput,
+  type SignAuthProofResult,
+  type SignAuthChallengeInput,
+  type SignAuthChallengeResult,
+} from './auth';
+export {
   signWshSortedMultiPsbt,
   type SignPsbtInput,
   type SignPsbtResult,

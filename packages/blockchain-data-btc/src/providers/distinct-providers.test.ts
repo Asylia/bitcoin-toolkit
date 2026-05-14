@@ -7,7 +7,7 @@ import {
   blockchainDotComFixtures,
   blockcypherFixtures,
 } from '../__fixtures__/providers';
-import { ProviderRateLimitError } from '../types';
+import { ProviderConfigurationError, ProviderRateLimitError } from '../types';
 import { BlockchainDotComProvider } from './blockchain-dot-com';
 import { BlockcypherProvider } from './blockcypher';
 
@@ -183,7 +183,7 @@ describe('distinct public chain-data providers', () => {
   });
 
   describe('BlockcypherProvider', () => {
-    it('maps balances, appends tokens, and clamps negative pending balances', async () => {
+    it('maps balances, appends tokens, and preserves negative pending balances', async () => {
       fetchMock.mockResolvedValueOnce(jsonResponse({
         ...blockcypherFixtures.balance,
         unconfirmed_balance: -25_000,
@@ -193,7 +193,7 @@ describe('distinct public chain-data providers', () => {
       await expect(provider.fetchSingle(FIXTURE_ADDRESS_A)).resolves.toEqual({
         address: FIXTURE_ADDRESS_A,
         balance_sats: 100_000,
-        pending_sats: 0,
+        pending_sats: -25_000,
         total_received_sats: 150_000,
         tx_count: 2,
       });
@@ -358,9 +358,9 @@ describe('distinct public chain-data providers', () => {
       const limited = new BlockcypherProvider({ throttleWaitMs: 25 });
       limited.bindThrottle(throttle as never);
 
-      await expect(limited.fetchTipHeight()).rejects.toBeInstanceOf(ProviderRateLimitError);
+      await expect(limited.fetchTipHeight()).rejects.toBeInstanceOf(ProviderConfigurationError);
       expect(throttle.acquire).toHaveBeenCalledWith(25);
-      expect(throttle.tripCooldown).toHaveBeenCalledWith(5_000);
+      expect(throttle.tripCooldown).not.toHaveBeenCalled();
       expect(throttle.release).toHaveBeenCalledTimes(1);
     });
   });

@@ -58,7 +58,7 @@ describe('BlockchainDataService', () => {
     });
   });
 
-  it('prefers bulk-capable providers for multi-address reads and preserves caller order', async () => {
+  it('preserves configured provider order for multi-address reads and caller order', async () => {
     const esploraFetchMulti = vi.fn(async (addresses: readonly string[]) =>
       addresses.map((address, index) => balance(address, index + 1)),
     );
@@ -80,14 +80,14 @@ describe('BlockchainDataService', () => {
     const first = await service.getMulti(['bc1qb', 'bc1qa']);
     const second = await service.getMulti(['bc1qa', 'bc1qb']);
 
-    expect(esploraFetchMulti).not.toHaveBeenCalled();
-    expect(bulkFetchMulti).toHaveBeenCalledTimes(1);
-    expect(bulkFetchMulti).toHaveBeenCalledWith(['bc1qa', 'bc1qb']);
+    expect(esploraFetchMulti).toHaveBeenCalledTimes(1);
+    expect(esploraFetchMulti).toHaveBeenCalledWith(['bc1qa', 'bc1qb']);
+    expect(bulkFetchMulti).not.toHaveBeenCalled();
     expect(first.balances.map((entry) => entry.address)).toEqual(['bc1qb', 'bc1qa']);
     expect(first.summary).toMatchObject({
-      total_balance_sats: 30,
+      total_balance_sats: 3,
       total_pending_sats: 0,
-      total_received_sats: 30,
+      total_received_sats: 3,
       address_count: 2,
     });
     expect(second.balances.map((entry) => entry.address)).toEqual(['bc1qa', 'bc1qb']);
@@ -169,6 +169,52 @@ describe('BlockchainDataService', () => {
       ProviderId.MEMPOOL_SPACE,
       ProviderId.BLOCKSTREAM_INFO,
     ]);
+  });
+
+  it('emits provider-walk metrics without letting telemetry failures affect reads', async () => {
+    const metrics = vi.fn()
+      .mockImplementationOnce(() => {
+        throw new Error('metrics sink offline');
+      });
+    const rateLimited = vi.fn(async () => {
+      throw new ProviderRateLimitError('slow down', 1_000);
+    });
+    const fallback = vi.fn(async (address: string) => balance(address, 7));
+    const service = new BlockchainDataService({
+      providers: {
+        [ProviderId.MEMPOOL_SPACE]: {
+          roles: ['read-balance'],
+          fetchSingle: rateLimited,
+        },
+        [ProviderId.BLOCKSTREAM_INFO]: {
+          roles: ['read-balance'],
+          fetchSingle: fallback,
+        },
+      },
+      priority: [ProviderId.MEMPOOL_SPACE, ProviderId.BLOCKSTREAM_INFO],
+      enableDeduplication: false,
+      metrics,
+    });
+
+    await expect(service.getSingle('bc1qmetrics')).resolves.toMatchObject({
+      address: 'bc1qmetrics',
+      balance_sats: 7,
+    });
+    expect(metrics).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'request_started',
+      providerId: ProviderId.MEMPOOL_SPACE,
+      operation: 'getSingle',
+    }));
+    expect(metrics).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'rate_limit_hit',
+      providerId: ProviderId.MEMPOOL_SPACE,
+      retryAfterMs: 1_000,
+    }));
+    expect(metrics).toHaveBeenCalledWith(expect.objectContaining({
+      event: 'request_succeeded',
+      providerId: ProviderId.BLOCKSTREAM_INFO,
+      operation: 'getSingle',
+    }));
   });
 
   it('excludes unsupported providers from the dev provider trail', async () => {

@@ -18,6 +18,9 @@
  *      `ProviderRateLimitError` the gate is shut for at least the
  *      `Retry-After` value (or the configured `coolDownMs` baseline
  *      when no header is present).
+ *   5. **Circuit breaker** — repeated transient failures open a
+ *      short provider-level gate so the service can fail over instead
+ *      of hammering a sick upstream.
  *
  * Callers acquire a permit (with a `maxWaitMs` deadline so the
  * service walker can quickly bail to the next provider) and *must*
@@ -46,11 +49,31 @@ type ProviderState = {
   inFlight: number;
   lastReleaseAt: number;
   cooldownUntil: number;
+  circuitOpenUntil: number;
   requestTimestamps: number[];
+  circuitSamples: CircuitSample[];
   waiters: Waiter[];
   /** Pending dispatch timer scheduled by `setTimeout`, for cancellation. */
   dispatchTimer: ReturnType<typeof setTimeout> | null;
 };
+
+type CircuitSample = {
+  timestamp: number;
+  ok: boolean;
+};
+
+export type CircuitBreakerState = {
+  open: boolean;
+  remainingMs: number;
+  sampleCount: number;
+  failureCount: number;
+  failureRate: number;
+};
+
+const CIRCUIT_WINDOW_MS = 60_000;
+const CIRCUIT_MIN_SAMPLES = 4;
+const CIRCUIT_FAILURE_RATE_THRESHOLD = 0.5;
+const CIRCUIT_COOLDOWN_MS = 60_000;
 
 /**
  * One queued caller waiting for a permit. The deadline timer is held
@@ -89,9 +112,19 @@ export class ProviderThrottle {
     this.limiter.release(this.providerId);
   }
 
-  /** Trip an explicit cooldown after a 429/403 from this provider. */
+  /** Trip an explicit cooldown after a 429 from this provider. */
   tripCooldown(retryAfterMs?: number): void {
     this.limiter.tripCooldown(this.providerId, retryAfterMs);
+  }
+
+  /** Record a successful provider round-trip for circuit-breaker health. */
+  recordSuccess(): void {
+    this.limiter.recordSuccess(this.providerId);
+  }
+
+  /** Record a transient provider failure for circuit-breaker health. */
+  recordFailure(options: { transient?: boolean } = {}): void {
+    this.limiter.recordFailure(this.providerId, options);
   }
 }
 
@@ -130,6 +163,10 @@ export class RateLimiterService {
     if (state.cooldownUntil > now) {
       return state.cooldownUntil - now;
     }
+    // Circuit breaker: hard gate for transient upstream failures.
+    if (state.circuitOpenUntil > now) {
+      return state.circuitOpenUntil - now;
+    }
     // In-flight cap: cannot estimate when a slot will free up
     // synchronously, so report a conservative ~50ms tick.
     if (state.inFlight >= limit.maxConcurrent) {
@@ -156,6 +193,30 @@ export class RateLimiterService {
     const state = this.states.get(providerId);
     if (!state) return 0;
     return Math.max(0, state.cooldownUntil - Date.now());
+  }
+
+  /** Current transient-failure circuit breaker health for one provider. */
+  getCircuitBreakerState(providerId: ProviderId): CircuitBreakerState {
+    const state = this.states.get(providerId);
+    if (!state) {
+      return {
+        open: false,
+        remainingMs: 0,
+        sampleCount: 0,
+        failureCount: 0,
+        failureRate: 0,
+      };
+    }
+    const now = Date.now();
+    const samples = this.trimCircuitSamples(state, now);
+    const failureCount = samples.filter((sample) => !sample.ok).length;
+    return {
+      open: state.circuitOpenUntil > now,
+      remainingMs: Math.max(0, state.circuitOpenUntil - now),
+      sampleCount: samples.length,
+      failureCount,
+      failureRate: samples.length === 0 ? 0 : failureCount / samples.length,
+    };
   }
 
   /** Sliding-window request count inside the active period. */
@@ -225,7 +286,7 @@ export class RateLimiterService {
   }
 
   /**
-   * Trip an explicit cooldown after the upstream answered 429 / 403.
+   * Trip an explicit cooldown after the upstream answered 429.
    * Always extends the existing cooldown (never shortens it) so a
    * provider that issued a long `Retry-After` is honoured even if a
    * follow-up call would have suggested less.
@@ -236,6 +297,54 @@ export class RateLimiterService {
     const ms = Math.max(retryAfterMs ?? 0, baseline);
     const deadline = Date.now() + ms;
     state.cooldownUntil = Math.max(state.cooldownUntil, deadline);
+  }
+
+  /**
+   * Mark a successful provider round-trip. If the provider was in a
+   * half-open state (the breaker timeout elapsed and this was the
+   * trial request), clear the old failure window so it can recover
+   * immediately after a healthy response.
+   */
+  recordSuccess(providerId: ProviderId): void {
+    const state = this.getOrCreateState(providerId);
+    const now = Date.now();
+    if (state.circuitOpenUntil > 0 && state.circuitOpenUntil <= now) {
+      state.circuitOpenUntil = 0;
+      state.circuitSamples = [];
+    }
+    this.pushCircuitSample(state, { timestamp: now, ok: true });
+  }
+
+  /**
+   * Mark a transient provider failure. Once more than half of the
+   * rolling 60-second sample window is failing, the provider is held
+   * out of rotation for 60 seconds. A failed half-open trial reopens
+   * the circuit immediately.
+   */
+  recordFailure(
+    providerId: ProviderId,
+    options: { transient?: boolean } = {},
+  ): void {
+    if (options.transient === false) return;
+    const state = this.getOrCreateState(providerId);
+    const now = Date.now();
+    const wasHalfOpen = state.circuitOpenUntil > 0 && state.circuitOpenUntil <= now;
+
+    if (wasHalfOpen) {
+      state.circuitSamples = [];
+      this.openCircuit(state, now);
+      return;
+    }
+
+    const samples = this.pushCircuitSample(state, { timestamp: now, ok: false });
+    const failureCount = samples.filter((sample) => !sample.ok).length;
+    const failureRate = samples.length === 0 ? 0 : failureCount / samples.length;
+    if (
+      samples.length >= CIRCUIT_MIN_SAMPLES &&
+      failureRate > CIRCUIT_FAILURE_RATE_THRESHOLD
+    ) {
+      this.openCircuit(state, now);
+    }
   }
 
   /**
@@ -258,7 +367,9 @@ export class RateLimiterService {
       state.inFlight = 0;
       state.lastReleaseAt = 0;
       state.cooldownUntil = 0;
+      state.circuitOpenUntil = 0;
       state.requestTimestamps = [];
+      state.circuitSamples = [];
     };
     if (providerId) {
       const state = this.states.get(providerId);
@@ -286,7 +397,9 @@ export class RateLimiterService {
         inFlight: 0,
         lastReleaseAt: 0,
         cooldownUntil: 0,
+        circuitOpenUntil: 0,
         requestTimestamps: [],
+        circuitSamples: [],
         waiters: [],
         dispatchTimer: null,
       };
@@ -346,5 +459,31 @@ export class RateLimiterService {
     // Run on the next microtask so a release+immediate acquire pair
     // does not re-enter the loop synchronously.
     state.dispatchTimer = setTimeout(tick, 0);
+  }
+
+  private pushCircuitSample(
+    state: ProviderState,
+    sample: CircuitSample,
+  ): CircuitSample[] {
+    state.circuitSamples.push(sample);
+    return this.trimCircuitSamples(state, sample.timestamp);
+  }
+
+  private trimCircuitSamples(
+    state: ProviderState,
+    now: number,
+  ): CircuitSample[] {
+    const windowStart = now - CIRCUIT_WINDOW_MS;
+    state.circuitSamples = state.circuitSamples.filter(
+      (sample) => sample.timestamp > windowStart,
+    );
+    return state.circuitSamples;
+  }
+
+  private openCircuit(state: ProviderState, now: number): void {
+    state.circuitOpenUntil = Math.max(
+      state.circuitOpenUntil,
+      now + CIRCUIT_COOLDOWN_MS,
+    );
   }
 }

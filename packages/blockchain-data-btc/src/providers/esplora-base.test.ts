@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ProviderRateLimitError } from '../types';
+import { ProviderConfigurationError, ProviderRateLimitError } from '../types';
 import { BlockstreamInfoProvider } from './blockstream-info';
 import { EsploraBaseProvider } from './esplora-base';
 import { EsploraMirrorProvider } from './esplora-mirror';
@@ -102,6 +102,24 @@ describe('EsploraBaseProvider', () => {
     expect(throttle.release).toHaveBeenCalledTimes(1);
   });
 
+  it('maps 403 responses to configuration errors without tripping cooldown', async () => {
+    const throttle = {
+      acquire: vi.fn(async () => true),
+      release: vi.fn(),
+      tripCooldown: vi.fn(),
+    };
+    fetchMock.mockResolvedValueOnce(new Response('forbidden', { status: 403 }));
+    const provider = new EsploraBaseProvider({
+      baseUrl: 'https://mempool.example/api',
+      displayName: 'TEST',
+    });
+    provider.bindThrottle(throttle as never);
+
+    await expect(provider.fetchTipHeight()).rejects.toBeInstanceOf(ProviderConfigurationError);
+    expect(throttle.tripCooldown).not.toHaveBeenCalled();
+    expect(throttle.release).toHaveBeenCalledTimes(1);
+  });
+
   it('treats throttle acquisition timeouts as rate-limit errors without extra cooldown', async () => {
     const throttle = {
       acquire: vi.fn(async () => false),
@@ -127,8 +145,8 @@ describe('EsploraBaseProvider', () => {
       displayName: 'TEST',
     });
 
-    fetchMock.mockResolvedValueOnce(new Response('offline', { status: 500 }));
-    await expect(provider.fetchTipHeight()).rejects.toThrow('TEST returned 500');
+    fetchMock.mockResolvedValueOnce(new Response('bad request', { status: 400 }));
+    await expect(provider.fetchTipHeight()).rejects.toThrow('TEST returned 400');
 
     fetchMock.mockResolvedValueOnce(jsonResponse({ address: 'bc1qa' }));
     await expect(provider.fetchSingle('bc1qa')).rejects.toThrow('missing chain_stats');
@@ -141,6 +159,86 @@ describe('EsploraBaseProvider', () => {
 
     fetchMock.mockResolvedValueOnce(new Response('not-a-txid'));
     await expect(provider.broadcastTransaction('00')).rejects.toThrow('non-txid payload');
+  });
+
+  it('retries transient read failures once and records provider health', async () => {
+    const throttle = {
+      acquire: vi.fn(async () => true),
+      release: vi.fn(),
+      tripCooldown: vi.fn(),
+      recordSuccess: vi.fn(),
+      recordFailure: vi.fn(),
+    };
+    fetchMock
+      .mockResolvedValueOnce(new Response('offline', { status: 503 }))
+      .mockResolvedValueOnce(new Response('825003'));
+    const provider = new EsploraBaseProvider({
+      baseUrl: 'https://mempool.example/api',
+      displayName: 'TEST',
+      retryDelayMs: 0,
+      retryJitterMs: 0,
+    });
+    provider.bindThrottle(throttle as never);
+
+    await expect(provider.fetchTipHeight()).resolves.toBe(825003);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(throttle.acquire).toHaveBeenCalledTimes(2);
+    expect(throttle.release).toHaveBeenCalledTimes(2);
+    expect(throttle.recordSuccess).toHaveBeenCalledTimes(1);
+    expect(throttle.recordFailure).not.toHaveBeenCalled();
+  });
+
+  it('records an unhealthy provider after an exhausted transient read retry', async () => {
+    const throttle = {
+      acquire: vi.fn(async () => true),
+      release: vi.fn(),
+      tripCooldown: vi.fn(),
+      recordSuccess: vi.fn(),
+      recordFailure: vi.fn(),
+    };
+    fetchMock
+      .mockRejectedValueOnce(new TypeError('network down'))
+      .mockRejectedValueOnce(new TypeError('still down'));
+    const provider = new EsploraBaseProvider({
+      baseUrl: 'https://mempool.example/api',
+      displayName: 'TEST',
+      retryDelayMs: 0,
+      retryJitterMs: 0,
+    });
+    provider.bindThrottle(throttle as never);
+
+    await expect(provider.fetchTipHeight()).rejects.toThrow('still down');
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(throttle.release).toHaveBeenCalledTimes(2);
+    expect(throttle.recordSuccess).not.toHaveBeenCalled();
+    expect(throttle.recordFailure).toHaveBeenCalledWith({ transient: true });
+  });
+
+  it('does not retry broadcast failures', async () => {
+    const throttle = {
+      acquire: vi.fn(async () => true),
+      release: vi.fn(),
+      tripCooldown: vi.fn(),
+      recordSuccess: vi.fn(),
+      recordFailure: vi.fn(),
+    };
+    fetchMock.mockResolvedValueOnce(new Response('offline', { status: 503 }));
+    const provider = new EsploraBaseProvider({
+      baseUrl: 'https://mempool.example/api',
+      displayName: 'TEST',
+      retryDelayMs: 0,
+      retryJitterMs: 0,
+    });
+    provider.bindThrottle(throttle as never);
+
+    await expect(provider.broadcastTransaction('00')).rejects.toThrow('TEST returned 503');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(throttle.release).toHaveBeenCalledTimes(1);
+    expect(throttle.recordSuccess).not.toHaveBeenCalled();
+    expect(throttle.recordFailure).toHaveBeenCalledWith({ transient: true });
   });
 
   it('fans out multi-address calls while preserving order', async () => {

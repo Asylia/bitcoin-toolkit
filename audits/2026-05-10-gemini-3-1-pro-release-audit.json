@@ -1,0 +1,44 @@
+{
+  "auditId": "gemini-3-1-pro-release-audit-2026-05-10",
+  "date": "2026-05-10",
+  "title": "Security audit: Wallet-centric access, PSBT policy, and Ledger integration",
+  "target": "main",
+  "status": "passed",
+  "branch": "release/test",
+  "baseRef": "main",
+  "headRef": "release/test",
+  "commitRange": "main...release/test",
+  "scope": [
+    "Wallet-centric access profiles and billing",
+    "PSBT spending policy validation helpers",
+    "Ledger hardware signer authentication",
+    "Proposal transaction state enforcement in Supabase"
+  ],
+  "modelReviews": [
+    {
+      "provider": "Google",
+      "family": "Gemini",
+      "model": "Gemini 3.1 Pro",
+      "version": "gemini-3.1-pro",
+      "role": "Primary security-first release audit",
+      "status": "completed"
+    }
+  ],
+  "findingsSummary": {
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 1,
+    "info": 2,
+    "blockingFindings": false,
+    "unresolvedCriticalOrHigh": false
+  },
+  "reportPath": "docs/audits/reports/2026-05-10-gemini-3-1-pro-release-audit.md",
+  "publicReportPath": "docs/audits/public/2026-05-10-gemini-3-1-pro-release-audit.md",
+  "marketingPath": "apps/marketing/content/audits/2026-05-10-gemini-3-1-pro-release-audit.md",
+  "publicSummary": "Security audit by Gemini 3.1 Pro covering wallet access profiles, PSBT policies, Ledger hardware authentication, and Supabase RPC proposal enforcements. Found zero critical/high/medium findings. One low finding related to client-side platform fee derivations which are safely validated server-side. Two informational findings. No release blocker.",
+  "publication": {
+    "safeForPublic": true,
+    "summary": "This report covers PSBT policy, Ledger integration, and Supabase RPC lifecycle enforcement details only. It does not disclose secrets, private user data, descriptors, xpub sets, PSBT base64, UTXO arrays, or operational tokens."
+  }
+}

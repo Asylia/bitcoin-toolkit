@@ -147,7 +147,9 @@ export type TrezorErrorCode =
   | 'device_timeout'
   | 'firmware_too_old'
   | 'descriptor_unavailable'
+  | 'invalid_multisig'
   | 'invalid_path'
+  | 'message_signing_forbidden_path'
   | 'transport_unavailable'
   | 'unknown';
 

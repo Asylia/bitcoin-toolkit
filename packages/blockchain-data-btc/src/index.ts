@@ -21,6 +21,7 @@
 
 export {
   ProviderId,
+  ProviderConfigurationError,
   ProviderRateLimitError,
   type AddressTransactions,
   type AddressUtxos,
@@ -97,7 +98,11 @@ export {
 
 export {
   BlockchainDataService,
+  type BlockchainDataMetricEvent,
   type BlockchainDataServiceConfig,
 } from './service';
 
-export const ASYLIA_BLOCKCHAIN_DATA_BTC_VERSION = '0.1.0' as const;
+import packageJson from '../package.json' with { type: 'json' };
+
+export const ASYLIA_BLOCKCHAIN_DATA_BTC_VERSION = packageJson.version;
+export { pMap } from './utils';

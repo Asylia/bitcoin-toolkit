@@ -41,6 +41,11 @@
 export { initLedger, type LedgerInitOptions } from './init';
 export { exportLedgerRoot } from './xpub';
 export { displayWshSortedMultiAddress } from './address';
+export {
+  signAuthChallengeWithLedger,
+  type SignAuthChallengeInput,
+  type SignAuthChallengeResult,
+} from './auth';
 export { signWshSortedMultiPsbt } from './sign';
 export {
   buildLedgerWalletPolicy,

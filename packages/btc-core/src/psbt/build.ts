@@ -22,7 +22,7 @@
  * combiner role of `@caravan/psbt` to merge multiple signed copies
  * into a fully-signed PSBT before finalising and broadcasting.
  */
-import { Buffer } from 'buffer';
+import { Buffer } from 'node:buffer';
 import { PsbtV2 } from '@caravan/psbt';
 import { address as bitcoinAddress, payments, Transaction } from 'bitcoinjs-lib';
 import type { BIP32Interface } from 'bip32';
@@ -31,6 +31,8 @@ import { bip32 } from '../crypto/ecc';
 import { toCanonicalXpub } from '../descriptor/normalize';
 import { networkOf } from '../network';
 import type { DescriptorKey } from '../types';
+import { PsbtBuildError } from './errors';
+import { reverseTxidHex } from './txid';
 import type {
   BuildWshSortedMultiPsbtInput,
   BuildWshSortedMultiPsbtResult,
@@ -39,11 +41,6 @@ import type {
   Utxo,
 } from './types';
 
-/** Errors raised by the PSBT builder. */
-export class PsbtBuildError extends Error {
-  override readonly name = 'PsbtBuildError';
-}
-
 /**
  * Below this many satoshis a P2WSH output is considered dust and
  * generally rejected by the network. We only use it as a
@@ -51,6 +48,12 @@ export class PsbtBuildError extends Error {
  * selection is responsible for not creating dust change.
  */
 const DUST_THRESHOLD_SATS = 546;
+
+/**
+ * BIP125 opt-in RBF sequence. `0xfffffffd` keeps nLockTime usable and
+ * marks every newly built wallet transaction as replaceable by fee.
+ */
+const DEFAULT_INPUT_SEQUENCE = 0xfffffffd;
 
 /**
  * Build the full PSBT v2 base64 payload for a `wsh(sortedmulti(...))`
@@ -151,6 +154,7 @@ export function buildWshSortedMultiPsbt(
       // `bad-txns-inputs-missingorspent`.
       previousTxId: reverseTxidHex(utxo.txid),
       outputIndex: utxo.vout,
+      sequence: DEFAULT_INPUT_SEQUENCE,
       witnessUtxo: {
         amount: utxo.valueSats,
         script: slot.scriptPubKey,
@@ -451,7 +455,7 @@ function fundingTransactionBuffer(utxo: Utxo, expectedScript: Buffer): Buffer {
   const buffer = Buffer.from(raw, 'hex');
   let transaction: Transaction;
   try {
-    transaction = Transaction.fromBuffer(buffer);
+    transaction = Transaction.fromBuffer(new Uint8Array(buffer));
   } catch (cause) {
     throw new PsbtBuildError(
       `UTXO ${utxo.txid}:${utxo.vout} previous transaction could not be parsed (${(cause as Error).message}).`,
@@ -474,7 +478,7 @@ function fundingTransactionBuffer(utxo: Utxo, expectedScript: Buffer): Buffer {
       `UTXO ${utxo.txid}:${utxo.vout} amount does not match the previous transaction output.`,
     );
   }
-  if (!Buffer.from(output.script).equals(expectedScript)) {
+  if (!bytesEqual(output.script, new Uint8Array(expectedScript))) {
     throw new PsbtBuildError(
       `UTXO ${utxo.txid}:${utxo.vout} script does not match the derived vault script.`,
     );
@@ -514,27 +518,12 @@ function compareBytes(a: Uint8Array, b: Uint8Array): number {
   return a.length - b.length;
 }
 
-/**
- * Flip a 32-byte transaction id between its big-endian "display" form
- * (the one block explorers / RPC / `Utxo.txid` use) and the
- * little-endian "internal" form Bitcoin's wire format and BIP-370's
- * `PSBT_IN_PREVIOUS_TXID` require. The operation is its own inverse,
- * so the same helper covers both write (`build`) and read
- * (`extractPsbtInputs` / `inspectPsbtV2`) directions.
- *
- * Throws {@link PsbtBuildError} if the input is not 64 lowercase hex
- * characters — anything shorter would silently produce a malformed
- * outpoint and a tx that the network rejects later.
- */
-export function reverseTxidHex(hex: string): string {
-  if (typeof hex !== 'string' || hex.length !== 64 || !/^[0-9a-f]+$/i.test(hex)) {
-    throw new PsbtBuildError(
-      `Transaction id must be 64 lowercase hex characters (got ${typeof hex === 'string' ? `"${hex}"` : typeof hex}).`,
-    );
+function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false;
   }
-  let out = '';
-  for (let i = hex.length; i > 0; i -= 2) {
-    out += hex.slice(i - 2, i);
-  }
-  return out.toLowerCase();
+  return true;
 }
+
+export { PsbtBuildError, reverseTxidHex };

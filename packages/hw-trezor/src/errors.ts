@@ -64,8 +64,12 @@ const MESSAGES: Record<TrezorErrorCode, string> = {
     'This Trezor firmware does not support multisig export. Update the device firmware in Trezor Suite and try again.',
   descriptor_unavailable:
     'This Trezor model cannot return the BIP-380 descriptor needed for multisig. Use a Trezor Model T, Safe 3, Safe 5, or Safe 7.',
+  invalid_multisig:
+    'Trezor rejected the multisig metadata for this PSBT. Reload the proposal; if it was created on this branch, rebuild it before signing.',
   invalid_path:
     'The derivation path the wallet requested was rejected by the device.',
+  message_signing_forbidden_path:
+    'This Trezor firmware does not allow message signing on the multisig signer path. Asylia cannot safely use this device for signer login until PSBT-shaped signer proofs are enabled.',
   transport_unavailable:
     'Could not reach the Trezor. Install Trezor Bridge or try again in a Chromium-based browser with WebUSB enabled.',
   unknown: 'Something went wrong while talking to the Trezor.',
@@ -128,6 +132,10 @@ function guessFromMessage(message: string): TrezorErrorCode {
   if (lower.includes('disconnect')) return 'device_disconnected';
   if (lower.includes('not found')) return 'device_not_found';
   if (lower.includes('used in another')) return 'device_in_use';
+  if (lower.includes('forbidden') && lower.includes('key path')) {
+    return 'message_signing_forbidden_path';
+  }
+  if (lower.includes('invalid multisig')) return 'invalid_multisig';
   if (lower.includes('transport')) return 'transport_unavailable';
   if (lower.includes('firmware')) return 'firmware_too_old';
   return 'unknown';

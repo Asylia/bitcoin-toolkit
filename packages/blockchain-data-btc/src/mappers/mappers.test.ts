@@ -41,9 +41,9 @@ describe('chain-data mappers', () => {
     })).toEqual({
       address: 'bc1qaddr',
       balance_sats: 100_000,
-      pending_sats: 0,
-      total_received_sats: 120_000,
-      tx_count: 3,
+      pending_sats: -5_000,
+      total_received_sats: 125_000,
+      tx_count: 4,
     });
 
     expect(mapEsploraUtxo('bc1qaddr', {
@@ -142,7 +142,7 @@ describe('chain-data mappers', () => {
       unconfirmed_n_tx: 1,
     })).toMatchObject({
       balance_sats: 100_000,
-      pending_sats: 0,
+      pending_sats: -20_000,
     });
     expect(mapBlockcypherUtxo('bc1qaddr', {
       tx_hash: 'txid',
@@ -212,6 +212,25 @@ describe('chain-data mappers', () => {
 
   it('covers mapper edge cases that protect provider failover decisions', () => {
     expect(mapEsploraAddress({
+      address: 'bc1qjyuv4tmwrqxq0kd509zvztdu2a4ejck8p6zm7yc5xf8wev3v2cxsdpw9lw',
+      chain_stats: {
+        funded_txo_sum: 0,
+        spent_txo_sum: 0,
+        tx_count: 0,
+      },
+      mempool_stats: {
+        funded_txo_sum: 3_000,
+        spent_txo_sum: 3_000,
+        tx_count: 2,
+      },
+    })).toMatchObject({
+      balance_sats: 0,
+      pending_sats: 0,
+      total_received_sats: 3_000,
+      tx_count: 2,
+    });
+
+    expect(mapEsploraAddress({
       address: 'bc1qpending',
       chain_stats: {
         funded_txo_sum: 10_000,
@@ -226,6 +245,8 @@ describe('chain-data mappers', () => {
     })).toMatchObject({
       balance_sats: 6_000,
       pending_sats: 6_000,
+      total_received_sats: 17_000,
+      tx_count: 2,
     });
 
     expect(mapBlockcypherBalance({

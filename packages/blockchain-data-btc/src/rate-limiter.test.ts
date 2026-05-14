@@ -70,4 +70,74 @@ describe('RateLimiterService', () => {
     expect(limiter.getInFlight(ProviderId.MEMPOOL_SPACE)).toBe(0);
     expect(limiter.getCurrentRequestCount(ProviderId.MEMPOOL_SPACE)).toBe(0);
   });
+
+  it('opens a provider circuit after repeated transient failures', async () => {
+    const limiter = new RateLimiterService({
+      priority: [ProviderId.MEMPOOL_SPACE],
+      rateLimits: {
+        ...defaultProviderConfig.rateLimits,
+        [ProviderId.MEMPOOL_SPACE]: {
+          requests: 30,
+          per: 60_000,
+          minIntervalMs: 0,
+          maxConcurrent: 1,
+          coolDownMs: 1_000,
+        },
+      },
+    });
+
+    limiter.recordSuccess(ProviderId.MEMPOOL_SPACE);
+    limiter.recordFailure(ProviderId.MEMPOOL_SPACE, { transient: true });
+    limiter.recordFailure(ProviderId.MEMPOOL_SPACE, { transient: true });
+
+    expect(limiter.getCircuitBreakerState(ProviderId.MEMPOOL_SPACE)).toMatchObject({
+      open: false,
+      sampleCount: 3,
+      failureCount: 2,
+    });
+
+    limiter.recordFailure(ProviderId.MEMPOOL_SPACE, { transient: true });
+
+    expect(limiter.getCircuitBreakerState(ProviderId.MEMPOOL_SPACE)).toMatchObject({
+      open: true,
+      remainingMs: 60_000,
+      sampleCount: 4,
+      failureCount: 3,
+    });
+    expect(limiter.canMakeRequest(ProviderId.MEMPOOL_SPACE)).toBe(false);
+
+    vi.advanceTimersByTime(60_000);
+
+    expect(limiter.canMakeRequest(ProviderId.MEMPOOL_SPACE)).toBe(true);
+
+    limiter.recordFailure(ProviderId.MEMPOOL_SPACE, { transient: true });
+
+    expect(limiter.getCircuitBreakerState(ProviderId.MEMPOOL_SPACE)).toMatchObject({
+      open: true,
+      remainingMs: 60_000,
+      sampleCount: 0,
+      failureCount: 0,
+    });
+  });
+
+  it('closes a half-open circuit after a successful trial request', () => {
+    const limiter = new RateLimiterService();
+
+    limiter.recordFailure(ProviderId.MEMPOOL_SPACE);
+    limiter.recordFailure(ProviderId.MEMPOOL_SPACE);
+    limiter.recordFailure(ProviderId.MEMPOOL_SPACE);
+    limiter.recordFailure(ProviderId.MEMPOOL_SPACE);
+
+    expect(limiter.getCircuitBreakerState(ProviderId.MEMPOOL_SPACE).open).toBe(true);
+
+    vi.advanceTimersByTime(60_000);
+    limiter.recordSuccess(ProviderId.MEMPOOL_SPACE);
+
+    expect(limiter.getCircuitBreakerState(ProviderId.MEMPOOL_SPACE)).toMatchObject({
+      open: false,
+      sampleCount: 1,
+      failureCount: 0,
+      failureRate: 0,
+    });
+  });
 });

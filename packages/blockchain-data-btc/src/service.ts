@@ -27,6 +27,7 @@ import {
 } from './config';
 import {
   ProviderId,
+  ProviderConfigurationError,
   ProviderRateLimitError,
   type AddressTransactions,
   type AddressUtxos,
@@ -40,6 +41,61 @@ import {
   type SingleAddressResponse,
 } from './types';
 import { debugError, debugLog } from './log';
+
+export type BlockchainDataMetricEvent =
+  | {
+      event: 'request_started';
+      providerId: ProviderId;
+      role: ProviderRole;
+      operation: string;
+      timestamp: number;
+    }
+  | {
+      event: 'request_succeeded';
+      providerId: ProviderId;
+      role: ProviderRole;
+      operation: string;
+      durationMs: number;
+    }
+  | {
+      event: 'rate_limit_hit';
+      providerId: ProviderId;
+      role: ProviderRole;
+      operation: string;
+      durationMs: number;
+      retryAfterMs: number;
+    }
+  | {
+      event: 'provider_configuration_error';
+      providerId: ProviderId;
+      role: ProviderRole;
+      operation: string;
+      durationMs: number;
+      status?: number;
+      errorName: string;
+    }
+  | {
+      event: 'provider_failed';
+      providerId: ProviderId;
+      role: ProviderRole;
+      operation: string;
+      durationMs: number;
+      errorName: string;
+    }
+  | {
+      event: 'provider_skipped';
+      providerId: ProviderId;
+      role: ProviderRole;
+      operation: string;
+      reason: 'unsupported' | 'rate_limited';
+      waitMs?: number;
+    }
+  | {
+      event: 'walk_exhausted';
+      role: ProviderRole;
+      operation: string;
+      errorName?: string;
+    };
 
 /** Service configuration. */
 export interface BlockchainDataServiceConfig {
@@ -59,6 +115,8 @@ export interface BlockchainDataServiceConfig {
   devMode?: boolean;
   /** Coalesce concurrent identical requests. Default `true`. */
   enableDeduplication?: boolean;
+  /** Optional production-safe telemetry hook for provider walks. */
+  metrics?: (event: BlockchainDataMetricEvent) => void;
 }
 
 /**
@@ -78,6 +136,7 @@ export class BlockchainDataService {
   private readonly requestCache: RequestCache | null;
   private readonly priority: ProviderId[];
   private readonly devMode: boolean;
+  private readonly metrics: ((event: BlockchainDataMetricEvent) => void) | null;
 
   constructor(config: BlockchainDataServiceConfig) {
     const {
@@ -86,6 +145,7 @@ export class BlockchainDataService {
       rateLimits,
       devMode = false,
       enableDeduplication = true,
+      metrics,
     } = config;
 
     const providerConfig: ProviderConfig = {
@@ -95,6 +155,7 @@ export class BlockchainDataService {
 
     this.priority = providerConfig.priority;
     this.devMode = devMode;
+    this.metrics = metrics ?? null;
     this.requestCache = enableDeduplication ? new RequestCache() : null;
     this.rateLimiter = new RateLimiterService(providerConfig);
 
@@ -188,6 +249,15 @@ export class BlockchainDataService {
     FIAT_RATES_MS: 30_000,
   } as const;
 
+  private emitMetric(event: BlockchainDataMetricEvent): void {
+    if (!this.metrics) return;
+    try {
+      this.metrics(event);
+    } catch (cause) {
+      debugError(this.devMode, '[BlockchainDataService] metrics callback failed:', cause);
+    }
+  }
+
   /**
    * Drive the priority walk for one role. Visits each provider that
    * declares the role in declared priority order. For each provider:
@@ -203,36 +273,30 @@ export class BlockchainDataService {
    * just moves on. Other errors record the attempt and try the next
    * provider too.
    *
-   * When `options.preferBulk` is set the priority list is rewritten
-   * for this single walk so `provider.bulkCapable === true` entries
-   * jump to the head of the queue. The relative order of bulk
-   * providers (and the relative order of non-bulk providers) is
-   * preserved so a consumer that asked for "Blockstream first" still
-   * gets Blockstream before any other Esplora deployment, but
-   * `BLOCKCHAIN_DOT_COM` (the only batch-capable provider today)
-   * pre-empts the lot for multi-address balance reads.
-   *
    * Rejects with `Error('NO_PROVIDER_AVAILABLE')` when the list is
    * exhausted, optionally suffixing the most recent provider error
    * for diagnostics.
    */
   private async walk<T>(
     role: ProviderRole,
+    operation: string,
     callProvider: (provider: Provider) => Promise<T>,
-    options: { preferBulk?: boolean } = {},
   ): Promise<{ value: T; providerId: ProviderId; trail: WalkAttempt[] }> {
     const trail: WalkAttempt[] = [];
     let lastError: Error | null = null;
 
-    const effectivePriority = options.preferBulk
-      ? this.priorityWithBulkFirst()
-      : this.priority;
-
-    for (const providerId of effectivePriority) {
+    for (const providerId of this.priority) {
       const provider = this.providers.get(providerId);
       if (!provider) continue;
       if (!supportsRole(provider, role)) {
         trail.push({ providerId, outcome: 'unsupported' });
+        this.emitMetric({
+          event: 'provider_skipped',
+          providerId,
+          role,
+          operation,
+          reason: 'unsupported',
+        });
         continue;
       }
       const waitMs = this.rateLimiter.timeUntilAvailable(providerId);
@@ -242,30 +306,87 @@ export class BlockchainDataService {
           `[BlockchainDataService] ${providerId} would wait ${waitMs}ms, skipping`,
         );
         trail.push({ providerId, outcome: 'rate-limited' });
+        this.emitMetric({
+          event: 'provider_skipped',
+          providerId,
+          role,
+          operation,
+          reason: 'rate_limited',
+          waitMs,
+        });
         continue;
       }
 
+      const startedAt = Date.now();
       try {
         // The provider's HTTP wrapper does the actual `acquire` /
         // `release` on the gate; the walker only needs to verify the
         // wait is short enough to be worth trying.
+        this.emitMetric({
+          event: 'request_started',
+          providerId,
+          role,
+          operation,
+          timestamp: startedAt,
+        });
         const value = await callProvider(provider);
         trail.push({ providerId, outcome: 'success' });
+        this.emitMetric({
+          event: 'request_succeeded',
+          providerId,
+          role,
+          operation,
+          durationMs: Date.now() - startedAt,
+        });
         return { value, providerId, trail };
       } catch (cause) {
+        const durationMs = Date.now() - startedAt;
         const err = cause instanceof Error ? cause : new Error(String(cause));
         lastError = err;
         if (cause instanceof ProviderRateLimitError) {
           // The provider already tripped its cooldown when it threw;
           // we just record the trail entry and move on.
           trail.push({ providerId, outcome: 'rate-limited', error: err });
+          this.emitMetric({
+            event: 'rate_limit_hit',
+            providerId,
+            role,
+            operation,
+            durationMs,
+            retryAfterMs: cause.retryAfterMs,
+          });
+        } else if (cause instanceof ProviderConfigurationError) {
+          trail.push({ providerId, outcome: 'error', error: err });
+          this.emitMetric({
+            event: 'provider_configuration_error',
+            providerId,
+            role,
+            operation,
+            durationMs,
+            status: cause.status,
+            errorName: err.name,
+          });
         } else {
           trail.push({ providerId, outcome: 'error', error: err });
+          this.emitMetric({
+            event: 'provider_failed',
+            providerId,
+            role,
+            operation,
+            durationMs,
+            errorName: err.name,
+          });
         }
         debugError(this.devMode, `[BlockchainDataService] ${providerId} failed:`, cause);
       }
     }
 
+    this.emitMetric({
+      event: 'walk_exhausted',
+      role,
+      operation,
+      errorName: lastError?.name,
+    });
     throw new Error(
       lastError ? `NO_PROVIDER_AVAILABLE: ${lastError.message}` : 'NO_PROVIDER_AVAILABLE',
     );
@@ -278,40 +399,21 @@ export class BlockchainDataService {
       .map((entry) => entry.providerId);
   }
 
-  /**
-   * Return a copy of the configured priority list with batch-capable
-   * providers (`provider.bulkCapable === true`) hoisted to the front.
-   * The relative order inside each group is preserved so a consumer
-   * that explicitly ordered their Esplora providers still gets that
-   * order — only the *cross-group* order is rewritten.
-   *
-   * Cached at the call site rather than memoised because the
-   * provider map is mutable via `setProvider` and re-running the
-   * filter on every multi-address read costs essentially nothing
-   * (single-digit element count).
-   */
-  private priorityWithBulkFirst(): ProviderId[] {
-    const bulk: ProviderId[] = [];
-    const rest: ProviderId[] = [];
-    for (const id of this.priority) {
-      const provider = this.providers.get(id);
-      if (provider?.bulkCapable === true) bulk.push(id);
-      else rest.push(id);
-    }
-    return [...bulk, ...rest];
-  }
-
   // ---------------------------------------------------------------------------
   // Reads
   // ---------------------------------------------------------------------------
 
   private async _getSingle(address: string): Promise<SingleAddressResponse> {
-    const { value, providerId, trail } = await this.walk('read-balance', (p) => {
-      if (!p.fetchSingle) {
-        throw new Error('Provider declared read-balance but has no fetchSingle method.');
-      }
-      return p.fetchSingle(address);
-    });
+    const { value, providerId, trail } = await this.walk(
+      'read-balance',
+      'getSingle',
+      (p) => {
+        if (!p.fetchSingle) {
+          throw new Error('Provider declared read-balance but has no fetchSingle method.');
+        }
+        return p.fetchSingle(address);
+      },
+    );
     const response: SingleAddressResponse = { ...value };
     if (this.devMode) {
       response.provider = providerId;
@@ -343,14 +445,13 @@ export class BlockchainDataService {
   }
 
   private async _getMulti(addresses: readonly string[]): Promise<MultiAddressResponse> {
-    // Multi-address reads prefer providers with a true batch endpoint
-    // (Blockchain.com `/multiaddr`): one HTTP round trip vs N when
-    // the alternative is an Esplora-shaped fanout. Single-address
-    // reads stay on the default priority — `/multiaddr` with one
-    // address is no faster than `/address/{addr}` and incurs the
-    // longer URL.
+    // Preserve configured provider priority. Esplora-shaped providers expose
+    // mempool_stats that the wallet needs for unconfirmed-only activity; forcing
+    // Blockchain.com `/multiaddr` ahead of them is faster but can hide mempool
+    // transactions and make active addresses look unused.
     const { value, providerId, trail } = await this.walk(
       'read-balance',
+      'getMulti',
       async (p) => {
         if (!p.fetchMulti) {
           throw new Error('Provider declared read-balance but has no fetchMulti method.');
@@ -363,7 +464,6 @@ export class BlockchainDataService {
         }
         return balances;
       },
-      { preferBulk: addresses.length > 1 },
     );
 
     // Defensive re-alignment: every consumer downstream — the SPA's
@@ -432,7 +532,7 @@ export class BlockchainDataService {
   private async _getUtxos(
     addresses: readonly string[],
   ): Promise<MultiAddressUtxosResponse> {
-    const { value, providerId, trail } = await this.walk('read-utxos', async (p) => {
+    const { value, providerId, trail } = await this.walk('read-utxos', 'getUtxos', async (p) => {
       if (!p.fetchUtxos) {
         throw new Error('Provider declared read-utxos but has no fetchUtxos method.');
       }
@@ -515,7 +615,7 @@ export class BlockchainDataService {
 
   private async _getRawTransaction(txid: string): Promise<RawTransactionResponse> {
     const canonicalTxid = canonicalTxidOrThrow(txid);
-    const { value, providerId, trail } = await this.walk('read-raw-tx', async (p) => {
+    const { value, providerId, trail } = await this.walk('read-raw-tx', 'getRawTransaction', async (p) => {
       if (!p.fetchRawTransaction) {
         throw new Error('Provider declared read-raw-tx but has no fetchRawTransaction method.');
       }
@@ -560,7 +660,7 @@ export class BlockchainDataService {
   private async _getTransactions(
     addresses: readonly string[],
   ): Promise<MultiAddressTransactionsResponse> {
-    const { value, providerId, trail } = await this.walk('read-txs', async (p) => {
+    const { value, providerId, trail } = await this.walk('read-txs', 'getTransactions', async (p) => {
       if (!p.fetchTransactions) {
         throw new Error('Provider declared read-txs but has no fetchTransactions method.');
       }
@@ -631,7 +731,7 @@ export class BlockchainDataService {
   }
 
   private async _getTipHeight(): Promise<number> {
-    const { value } = await this.walk('read-tip', async (p) => {
+    const { value } = await this.walk('read-tip', 'getTipHeight', async (p) => {
       if (!p.fetchTipHeight) {
         throw new Error('Provider declared read-tip but has no fetchTipHeight method.');
       }
@@ -664,7 +764,7 @@ export class BlockchainDataService {
   private async _getFiatRates(
     currencies: readonly string[],
   ): Promise<FiatRatesSnapshot> {
-    const { value } = await this.walk('read-fiat-rates', async (p) => {
+    const { value } = await this.walk('read-fiat-rates', 'getFiatRates', async (p) => {
       if (!p.fetchFiatRates) {
         throw new Error(
           'Provider declared read-fiat-rates but has no fetchFiatRates method.',
@@ -743,7 +843,7 @@ export class BlockchainDataService {
     rawTxHex: string,
     expectedTxid: string,
   ): Promise<BroadcastTransactionResponse> {
-    const { value, providerId, trail } = await this.walk('broadcast', async (p) => {
+    const { value, providerId, trail } = await this.walk('broadcast', 'broadcastTransaction', async (p) => {
       if (!p.broadcastTransaction) {
         throw new Error('Provider declared broadcast but has no broadcastTransaction method.');
       }

@@ -17,10 +17,13 @@
  *     requests to the same upstream just because a multi-address
  *     walker had N addresses to fetch.
  *   - **429 / 403 detection.** The class throws
- *     {@link ProviderRateLimitError} so the throttle trips an
- *     explicit cooldown instead of just counting the failure as a
- *     generic error, AND the service walker rotates to the next
- *     provider for follow-up calls.
+ *     {@link ProviderRateLimitError} on quota pressure; 403 is
+ *     surfaced as a configuration error so auth/ACL failures are not
+ *     disguised as rate limits.
+ *   - **Retry + circuit breaker reporting.** Idempotent reads get
+ *     one short retry for transient network/5xx failures before the
+ *     provider is marked unhealthy for the rate limiter's circuit
+ *     breaker. Broadcast stays single-shot.
  *   - **`Retry-After` parsing.** Honoured by the throttle when
  *     present.
  *   - **Bounded-concurrency fanout** for multi-address calls. The
@@ -38,7 +41,7 @@ import type {
   NormalizedUtxo,
   ProviderRole,
 } from '../types';
-import { ProviderRateLimitError } from '../types';
+import { ProviderConfigurationError, ProviderRateLimitError } from '../types';
 import {
   type EsploraAddressResponse,
   type EsploraTransaction,
@@ -89,6 +92,30 @@ export interface EsploraProviderConfig {
    * giving up too early on a healthy provider.
    */
   readonly throttleWaitMs?: number;
+  /** Enable the single transient retry for read requests. Defaults to `true`. */
+  readonly retryReads?: boolean;
+  /** Base retry backoff in milliseconds. Defaults to `200`. */
+  readonly retryDelayMs?: number;
+  /** Random retry jitter ceiling in milliseconds. Defaults to `100`. */
+  readonly retryJitterMs?: number;
+}
+
+type RequestOptions = {
+  retry?: boolean;
+};
+
+class EsploraHttpError extends Error {
+  constructor(
+    providerName: string,
+    readonly status: number,
+  ) {
+    super(`${providerName} returned ${status}.`);
+    this.name = 'EsploraHttpError';
+  }
+
+  get retryable(): boolean {
+    return this.status >= 500 && this.status <= 599;
+  }
 }
 
 /**
@@ -113,6 +140,9 @@ export class EsploraBaseProvider implements Provider {
   protected readonly headers: Record<string, string>;
   protected readonly devMode: boolean;
   protected readonly throttleWaitMs: number;
+  protected readonly retryReads: boolean;
+  protected readonly retryDelayMs: number;
+  protected readonly retryJitterMs: number;
   protected throttle: ProviderThrottle | null = null;
 
   constructor(config: EsploraProviderConfig) {
@@ -122,6 +152,9 @@ export class EsploraBaseProvider implements Provider {
     this.headers = config.headers ?? {};
     this.devMode = config.devMode ?? false;
     this.throttleWaitMs = config.throttleWaitMs ?? 4_000;
+    this.retryReads = config.retryReads ?? true;
+    this.retryDelayMs = config.retryDelayMs ?? 200;
+    this.retryJitterMs = config.retryJitterMs ?? 100;
   }
 
   bindThrottle(throttle: ProviderThrottle): void {
@@ -133,13 +166,40 @@ export class EsploraBaseProvider implements Provider {
    * throttle. Throws {@link ProviderRateLimitError} on:
    *
    *   - the throttle deadline elapsing without a permit, or
-   *   - an explicit quota response (429, or 403 with `Retry-After`).
+   *   - an explicit quota response (429 with optional `Retry-After`).
    *
-   * Other non-OK statuses bubble as plain `Error` so the service
-   * walks to the next provider without tripping a long cooldown on
-   * this one.
+   * Other retryable statuses (5xx / network) get a single bounded
+   * retry for read calls, then mark the provider as unhealthy so the
+   * rate limiter's circuit breaker can move traffic away from it.
    */
-  protected async request(path: string, init?: RequestInit): Promise<Response> {
+  protected async request(
+    path: string,
+    init?: RequestInit,
+    options: RequestOptions = {},
+  ): Promise<Response> {
+    const maxRetries = options.retry === false || !this.retryReads ? 0 : 1;
+    let attempt = 0;
+
+    while (true) {
+      try {
+        const response = await this.requestOnce(path, init);
+        this.throttle?.recordSuccess?.();
+        return response;
+      } catch (error) {
+        if (!isRetryableRequestError(error)) throw error;
+
+        if (attempt >= maxRetries) {
+          this.throttle?.recordFailure?.({ transient: true });
+          throw error;
+        }
+
+        attempt += 1;
+        await delay(this.nextRetryDelayMs());
+      }
+    }
+  }
+
+  private async requestOnce(path: string, init?: RequestInit): Promise<Response> {
     if (this.throttle) {
       const ok = await this.throttle.acquire(this.throttleWaitMs);
       if (!ok) {
@@ -164,7 +224,7 @@ export class EsploraBaseProvider implements Provider {
         headers: { ...this.headers, ...(init?.headers ?? {}) },
       });
 
-      if (response.status === 429 || response.status === 403) {
+      if (response.status === 429) {
         const retryAfterMs = parseRetryAfterMs(response.headers.get('retry-after'));
         if (this.throttle) this.throttle.tripCooldown(retryAfterMs ?? undefined);
         throw new ProviderRateLimitError(
@@ -172,15 +232,26 @@ export class EsploraBaseProvider implements Provider {
           retryAfterMs ?? 0,
         );
       }
+      if (response.status === 403) {
+        throw new ProviderConfigurationError(
+          `${this.displayName} returned 403 (configuration or permission denied).`,
+          403,
+        );
+      }
       if (!response.ok) {
         const body = this.devMode ? await response.clone().text() : '';
         debugLog(this.devMode, `[${this.displayName}] ${response.status} body: ${body}`);
-        throw new Error(`${this.displayName} returned ${response.status}.`);
+        throw new EsploraHttpError(this.displayName, response.status);
       }
       return response;
     } finally {
       this.throttle?.release();
     }
+  }
+
+  private nextRetryDelayMs(): number {
+    const jitter = this.retryJitterMs <= 0 ? 0 : Math.random() * this.retryJitterMs;
+    return Math.max(0, Math.round(this.retryDelayMs + jitter));
   }
 
   async fetchSingle(address: string): Promise<NormalizedAddressBalance> {
@@ -267,7 +338,7 @@ export class EsploraBaseProvider implements Provider {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
       body: rawTxHex,
-    });
+    }, { retry: false });
     const body = (await response.text()).trim();
     if (!/^[0-9a-f]{64}$/i.test(body)) {
       throw new Error(
@@ -276,4 +347,20 @@ export class EsploraBaseProvider implements Provider {
     }
     return body;
   }
+}
+
+function isRetryableRequestError(error: unknown): boolean {
+  if (
+    error instanceof ProviderRateLimitError ||
+    error instanceof ProviderConfigurationError
+  ) {
+    return false;
+  }
+  if (error instanceof EsploraHttpError) return error.retryable;
+  return error instanceof Error;
+}
+
+function delay(ms: number): Promise<void> {
+  if (ms <= 0) return Promise.resolve();
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

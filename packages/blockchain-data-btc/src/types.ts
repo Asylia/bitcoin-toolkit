@@ -98,22 +98,23 @@ export type ProviderRole =
  *     confirmed-only figure cleanly so it returns its `final_balance`
  *     (confirmed + mempool combined) — see `mapBlockchainDotCom` for
  *     the documented caveat.
- *   - `pending_sats` is the *unconfirmed* net inflow currently sitting
- *     in the mempool, clamped at zero so an unconfirmed outgoing spend
- *     never produces a negative number consumers would have to special
- *     case. Esplora providers populate it from `mempool_stats`;
- *     Blockchain.com cannot and reports `0`.
+ *   - `pending_sats` is the signed unconfirmed net delta currently
+ *     sitting in the mempool. Positive means an unconfirmed output is
+ *     adding value to the address; negative means an unconfirmed spend
+ *     is spending value from it. Esplora providers populate it from
+ *     `mempool_stats`; Blockchain.com cannot split mempool activity and
+ *     reports `0`.
  */
 export type NormalizedAddressBalance = {
   /** Bitcoin address (any format: P2PKH, P2SH, P2WPKH, P2WSH, P2TR). */
   address: string;
   /** Confirmed balance in satoshis (1 BTC = 100,000,000 sats). */
   balance_sats: number;
-  /** Net unconfirmed inflow in satoshis (clamped at zero). */
+  /** Signed net unconfirmed mempool delta in satoshis. */
   pending_sats: number;
-  /** Total received over the address's confirmed history, in satoshis. */
+  /** Total received over confirmed history plus unconfirmed funded outputs. */
   total_received_sats: number;
-  /** Lifetime number of confirmed transactions involving the address. */
+  /** Transaction count involving the address, including unconfirmed mempool txs. */
   tx_count: number;
 };
 
@@ -255,7 +256,7 @@ export type MultiAddressResponse = {
   summary: {
     /** Sum of confirmed balances across every requested address. */
     total_balance_sats: number;
-    /** Sum of unconfirmed (mempool) inflows across every address. */
+    /** Sum of signed unconfirmed mempool deltas across every address. */
     total_pending_sats: number;
     /** Sum of lifetime confirmed receipts across every address. */
     total_received_sats: number;
@@ -344,10 +345,10 @@ export type RawTransactionResponse = {
 
 /**
  * Marker thrown by providers when the upstream explicitly rate-limits
- * them (HTTP 429, or HTTP 403 with a quota-exceeded body, or any
- * `Retry-After` response). The service catches it, immediately marks
- * the provider as cooled-down for at least the suggested duration,
- * and walks to the next entry in the priority list.
+ * them (HTTP 429 or a throttle deadline). The service catches it,
+ * immediately marks the provider as cooled-down for at least the
+ * suggested duration, and walks to the next entry in the priority
+ * list.
  *
  * Other errors (timeouts, 5xx, malformed payload) bubble up as
  * generic `Error` and trigger a single-attempt failover without a
@@ -361,5 +362,24 @@ export class ProviderRateLimitError extends Error {
   constructor(message: string, retryAfterMs: number) {
     super(message);
     this.retryAfterMs = retryAfterMs;
+  }
+}
+
+/**
+ * Marker for upstream responses that look like configuration,
+ * permission, or account-policy failures rather than quota pressure.
+ *
+ * The service still fails over to the next provider, but the rate
+ * limiter must not cool the provider down as if the caller had simply
+ * exhausted a public quota. This keeps 403/auth/ACL mistakes visible
+ * as operator-actionable configuration errors.
+ */
+export class ProviderConfigurationError extends Error {
+  override readonly name = 'ProviderConfigurationError';
+  readonly status: number | undefined;
+
+  constructor(message: string, status?: number) {
+    super(message);
+    this.status = status;
   }
 }

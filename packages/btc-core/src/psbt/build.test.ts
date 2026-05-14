@@ -53,6 +53,7 @@ describe('buildWshSortedMultiPsbt', () => {
     expect(inspected.outputs).toHaveLength(2);
     expect(inspected.inputs[0]?.txid).toBe(fixture.utxos[0]?.txid);
     expect(inspected.inputs[0]?.vout).toBe(0);
+    expect(inspected.inputs[0]?.sequence).toBe(0xfffffffd);
     expect(inspected.inputs[0]?.witnessScript.length).toBeGreaterThan(0);
     expect(inspected.inputs[0]?.bip32Derivation).toHaveLength(3);
     expect(inspected.outputs[1]?.witnessScript?.length).toBeGreaterThan(0);
@@ -245,6 +246,7 @@ describe('PSBT signer counting and finalisation', () => {
     expect(extracted.vbytes).toBe(tx.virtualSize());
     expect(spentTxid).toBe(fixture.utxos[0]?.txid);
     expect(tx.ins[0]?.index).toBe(0);
+    expect(tx.ins[0]?.sequence).toBe(0xfffffffd);
     expect(Number(tx.outs[0]?.value)).toBe(RECIPIENT_VALUE_SATS);
     expect(Number(tx.outs[1]?.value)).toBe(CHANGE_VALUE_SATS);
   });

@@ -103,6 +103,27 @@ export {
   withChecksum,
 } from './descriptor/checksum';
 export {
+  ASYLIA_SIGNER_AUTH_PATH,
+  ASYLIA_SIGNER_AUTH_PURPOSE,
+  ASYLIA_SIGNER_AUTH_VERSION,
+  SignerAuthChallengeError,
+  buildSignerAuthChallenge,
+  signerXpubHash,
+  type SignerAuthChallenge,
+  type SignerAuthChallengeInput,
+} from './auth-challenge';
+export {
+  ASYLIA_SIGNER_PROOF_CHAIN,
+  ASYLIA_SIGNER_PROOF_INDEX,
+  ASYLIA_SIGNER_PROOF_INPUT_SATS,
+  ASYLIA_SIGNER_PROOF_OUTPUT_SATS,
+  SignerProofError,
+  buildSignerProofPsbt,
+  verifySignerProofPsbt,
+  type SignerProofPsbt,
+  type SignerProofSigner,
+} from './signer-proof';
+export {
   ASYLIA_BIP48_P2WSH_ROOT,
   toCanonicalXpub,
   isFingerprint,
@@ -165,6 +186,17 @@ export {
   findSegwitV0SignatureOwnerForPsbt,
   PsbtVerifyError,
 } from './psbt/verify';
+export {
+  checkWshSortedMultiPsbtPolicy,
+  type WshSortedMultiPsbtPolicyExpectedChange,
+  type WshSortedMultiPsbtPolicyExpectedOutput,
+  type WshSortedMultiPsbtPolicyInput,
+  type WshSortedMultiPsbtPolicyInputLock,
+  type WshSortedMultiPsbtPolicyResult,
+  type WshSortedMultiPsbtPolicySummary,
+  type WshSortedMultiPsbtPolicyViolation,
+  type WshSortedMultiPsbtPolicyViolationCode,
+} from './psbt/policy';
 export {
   selectCoinsLargestFirst,
   selectCoinsLargestFirstFixedFee,

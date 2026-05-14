@@ -52,8 +52,10 @@ export type SyntheticBitcoinFixture = {
   finalTxid: string;
 }
 
-export function makeSyntheticBitcoinFixture(): SyntheticBitcoinFixture {
-  const signers = [11, 22, 33].map(makeSigner);
+export function makeSyntheticBitcoinFixture(
+  seedBytes: readonly [number, number, number] = [11, 22, 33],
+): SyntheticBitcoinFixture {
+  const signers = seedBytes.map(makeSigner);
   const descriptors = signers.map((entry) => entry.descriptor);
   const descriptorSet = buildWshSortedMultiDescriptor({
     requiredSignatures: 2,

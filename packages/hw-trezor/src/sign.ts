@@ -674,21 +674,24 @@ export async function signWshSortedMultiPsbt(
       };
     }
     const sigBytes = hexToBytes(sigHex);
+    const normalisedSignature = normaliseTrezorSignature(sigBytes);
+    if (!normalisedSignature) {
+      log.error('malformed DER signature for signable input', { inputIndex: i });
+      return {
+        ok: false,
+        error: asAdapterError(
+          'unknown',
+          `Trezor produced a malformed signature for input ${i}.`,
+        ),
+      };
+    }
     const expectedPubkey = ctx.signerLeafPubkey;
-
-    // The PSBT bytes Trezor signed over and the bytes we will
-    // verify against include the SIGHASH_ALL trailing byte. Build
-    // the same `<DER>0x01` form the verifier expects so we don't
-    // have to reach into its internals.
-    const sigWithSighashByte = new Uint8Array(sigBytes.length + 1);
-    sigWithSighashByte.set(sigBytes, 0);
-    sigWithSighashByte[sigBytes.length] = 0x01;
 
     const verifies = verifySegwitV0SignatureAgainstPubkey(
       inspected,
       i,
       expectedPubkey,
-      sigWithSighashByte,
+      normalisedSignature.withSighashByte,
     );
     let actualPubkey = expectedPubkey;
     let reattributed = false;
@@ -699,7 +702,7 @@ export async function signWshSortedMultiPsbt(
       const owner = findSegwitV0SignatureOwner(
         inspected,
         i,
-        sigWithSighashByte,
+        normalisedSignature.withSighashByte,
         candidates,
       );
       if (owner) {
@@ -734,7 +737,7 @@ export async function signWshSortedMultiPsbt(
     attributed.push({
       inputIndex: i,
       sigHex,
-      sigBytes,
+      sigBytes: normalisedSignature.der,
       expectedPubkey,
       actualPubkey,
       reattributed,
@@ -813,9 +816,9 @@ export async function signWshSortedMultiPsbt(
 
 /**
  * Default nSequence used when the PSBT input has no explicit value.
- * 0xffffffff means "final" (no RBF, nLockTime ignored). The Asylia
- * builder does not set sequence explicitly, so this is what every
- * input on a freshly built proposal carries when broadcast.
+ * 0xffffffff means "final" (no RBF, nLockTime ignored). Fresh Asylia
+ * proposals set an explicit RBF sequence in the PSBT builder, so this
+ * fallback now only applies to externally supplied legacy PSBTs.
  */
 const SEQUENCE_FINAL = 0xffffffff;
 
@@ -856,6 +859,42 @@ function buildTrezorInput(params: {
     multisig,
     address_n: [...baseAddressN, chain, index],
   };
+}
+
+function normaliseTrezorSignature(signature: Uint8Array): {
+  der: Uint8Array;
+  withSighashByte: Uint8Array;
+} | null {
+  if (looksLikeDerSignature(signature)) {
+    const withSighashByte = new Uint8Array(signature.length + 1);
+    withSighashByte.set(signature, 0);
+    withSighashByte[signature.length] = 0x01;
+    return { der: signature, withSighashByte };
+  }
+
+  if (signature.length > 1 && signature[signature.length - 1] === 0x01) {
+    const der = signature.slice(0, -1);
+    if (!looksLikeDerSignature(der)) return null;
+    return { der, withSighashByte: signature };
+  }
+
+  return null;
+}
+
+function looksLikeDerSignature(bytes: Uint8Array): boolean {
+  if (bytes.length < 8) return false;
+  if (bytes[0] !== 0x30) return false;
+  const sequenceLength = bytes[1];
+  if (sequenceLength === undefined || sequenceLength + 2 !== bytes.length) return false;
+  if (bytes[2] !== 0x02) return false;
+  const rLength = bytes[3];
+  if (rLength === undefined || rLength === 0) return false;
+  const sTagIndex = 4 + rLength;
+  if (sTagIndex + 2 > bytes.length) return false;
+  if (bytes[sTagIndex] !== 0x02) return false;
+  const sLength = bytes[sTagIndex + 1];
+  if (sLength === undefined || sLength === 0) return false;
+  return sTagIndex + 2 + sLength === bytes.length;
 }
 
 function buildTrezorOutput(params: {

@@ -71,7 +71,7 @@ package root. The most important surfaces are:
 | Vault identity | `vaultIdentityKey` |
 | Address derivation | `deriveWshSortedMultiAddress`, `deriveWshSortedMultiAddressBatch`, `buildWshSortedMultiInstance` |
 | Address parsing | `parseBitcoinAddress`, `describeBitcoinAddressType` |
-| PSBT build/inspect | `buildWshSortedMultiPsbt`, `extractPsbtInputs`, `inspectPsbtV2`, `addressFromScript`, `bip32PathToAddressN` |
+| PSBT build/inspect/policy | `buildWshSortedMultiPsbt`, `extractPsbtInputs`, `inspectPsbtV2`, `checkWshSortedMultiPsbtPolicy`, `addressFromScript`, `bip32PathToAddressN` |
 | Signatures | `addPartialSignaturesToPsbt`, `computeBip143SighashAll`, `verifySegwitV0SignatureAgainstPubkey`, `findSegwitV0SignatureOwner`, `findSegwitV0SignatureOwnerForPsbt` |
 | Finalization | `countPsbtSigners`, `collectSignerFingerprints`, `finaliseAndExtractTransaction` |
 | Coin selection | `selectCoinsLargestFirst`, `selectCoinsLargestFirstFixedFee`, `maxSpendableSats` |
@@ -144,6 +144,26 @@ The PSBT surface is designed for hardware-wallet adapters:
   that a returned signature belongs to the expected cosigner before it is merged.
 - `addressFromScript` lets adapters recover standard recipient addresses for
   device prompts.
+
+## Hardened PSBT Policy
+
+`checkWshSortedMultiPsbtPolicy` is the shared policy checker used by the wallet
+and the `proposal-psbt` Edge Function before a signed proposal is trusted. It
+validates:
+
+- the exact input set and values reserved for the proposal,
+- the expected recipient and optional platform-fee recipient allowlist,
+- the expected recipient amount,
+- wallet change output shape and derivation,
+- vbyte, absolute-fee, fee-rate, and amount bounds,
+- optional required signer fingerprint,
+- optional final raw transaction binding.
+
+`expectedChange` is nullable on purpose. A no-change drain passes
+`expectedChange: null`, and the checker then requires the PSBT to contain no
+wallet change output. If change is expected, there must be exactly one wallet
+change output and it must match the derived P2WSH script, address, amount,
+chain `1`, and concrete index supplied by the caller.
 
 ## Not in Scope
 

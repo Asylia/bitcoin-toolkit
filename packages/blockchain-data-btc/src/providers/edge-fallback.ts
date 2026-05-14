@@ -1,12 +1,11 @@
 /**
  * Edge fallback provider.
  *
- * Last entry in the priority list. Forwards every chain-data call to a
- * server-side endpoint that holds the paid Blockstream API key. The
- * intent is **not** to carry steady-state traffic — every other
- * provider in the chain is free and good enough for normal load — but
- * to make sure the wallet keeps working when an unlucky power user
- * burns through every public limit at once.
+ * Runtime-agnostic provider that forwards chain-data calls to a
+ * server-side endpoint holding the paid Blockstream API key. Consumers
+ * choose where it sits in their priority list: the package default
+ * keeps it as a last-resort fallback, while the wallet can promote it
+ * to the primary path when a paid plan is configured.
  *
  * Zero coupling to any specific runtime: the caller passes an
  * `invoke({ op, args })` callback at construction time. The wallet
@@ -25,7 +24,7 @@ import type {
   NormalizedUtxo,
   ProviderRole,
 } from '../types';
-import { ProviderRateLimitError } from '../types';
+import { ProviderConfigurationError, ProviderRateLimitError } from '../types';
 import { debugLog } from '../log';
 import type { Provider } from './base';
 
@@ -97,7 +96,6 @@ const DEFAULT_ROLES: readonly ProviderRole[] = [
   'read-txs',
   'read-tip',
   'read-raw-tx',
-  'read-fiat-rates',
   'broadcast',
 ];
 
@@ -158,6 +156,9 @@ export class EdgeFallbackProvider implements Provider {
             result.error.retryAfterMs ?? 0,
           );
         }
+        if (result.error.status === 403) {
+          throw new ProviderConfigurationError(result.error.message, 403);
+        }
         throw new Error(result.error.message);
       }
       if (!result.data || result.data.op !== payload.op) {
@@ -209,8 +210,8 @@ export class EdgeFallbackProvider implements Provider {
     // Re-attach the address field on each utxo just in case the
     // server emitted them without it (defensive — the proxy fills it
     // in, but normalising here lets the package own the contract).
-    return result.results.map((bucket, i) => {
-      const address = addresses[i]!;
+    return alignBucketsByAddress(addresses, result.results, 'UTXO').map((bucket) => {
+      const address = bucket.address;
       const utxos: NormalizedUtxo[] = bucket.utxos.map((u) => ({ ...u, address }));
       return { address, utxos };
     });
@@ -228,8 +229,8 @@ export class EdgeFallbackProvider implements Provider {
         `Edge fallback returned tx buckets for ${result.results.length} addresses, expected ${addresses.length}.`,
       );
     }
-    return result.results.map((bucket, i) => {
-      const address = addresses[i]!;
+    return alignBucketsByAddress(addresses, result.results, 'tx').map((bucket) => {
+      const address = bucket.address;
       const transactions: NormalizedTransaction[] = bucket.transactions;
       return { address, transactions };
     });
@@ -283,4 +284,25 @@ export class EdgeFallbackProvider implements Provider {
     }
     return result.txid;
   }
+}
+
+function alignBucketsByAddress<T extends { address: string }>(
+  addresses: readonly string[],
+  buckets: readonly T[],
+  label: string,
+): T[] {
+  const byAddress = new Map<string, T>();
+  for (const bucket of buckets) {
+    if (byAddress.has(bucket.address)) {
+      throw new Error(`Edge fallback returned duplicate ${label} bucket for ${bucket.address}.`);
+    }
+    byAddress.set(bucket.address, bucket);
+  }
+  return addresses.map((address) => {
+    const bucket = byAddress.get(address);
+    if (!bucket) {
+      throw new Error(`Edge fallback returned no ${label} bucket for ${address}.`);
+    }
+    return bucket;
+  });
 }

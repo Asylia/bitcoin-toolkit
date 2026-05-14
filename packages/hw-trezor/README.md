@@ -150,7 +150,7 @@ transaction shape. `signWshSortedMultiPsbt` bridges that gap:
 1. Inspect the PSBT v2 with `@asylia/btc-core`.
 2. Translate inputs into Trezor `SPENDWITNESS` entries with multisig metadata.
 3. Translate external outputs and vault change outputs into device-readable
-   prompts.
+   prompts. No-change spends are represented without a wallet change output.
 4. Preserve PSBT version and locktime so signatures are over the transaction the
    wallet will actually finalize.
 5. Verify returned signatures against the expected cosigner pubkeys.
@@ -161,6 +161,12 @@ transaction shape. `signWshSortedMultiPsbt` bridges that gap:
 If no vault cosigner owns a returned signature, the adapter refuses it. Broken
 or misattributed partial signatures should never reach the proposal store.
 
+For native-SegWit PSBTs, the adapter does not ship previous full transactions
+as Trezor `refTxs`; witness UTXO data from the inspected PSBT is enough for the
+device signing flow. That keeps the package dependency boundary narrow:
+PSBT/transaction parsing remains in `@asylia/btc-core`, while this package owns
+only the Trezor Connect mapping and post-flight signature attribution.
+
 ## Error Model
 
 Vendor failures are normalized into stable `TrezorErrorCode` values:
@@ -168,8 +174,9 @@ Vendor failures are normalized into stable `TrezorErrorCode` values:
 ```text
 init_failed | manifest_required | cancelled | device_disconnected |
 device_not_found | device_in_use | device_locked | device_timeout |
-firmware_too_old | descriptor_unavailable | invalid_path |
-transport_unavailable | unknown
+firmware_too_old | descriptor_unavailable | invalid_multisig |
+invalid_path | message_signing_forbidden_path | transport_unavailable |
+unknown
 ```
 
 The wallet renders the adapter's user-facing message. It should not depend on

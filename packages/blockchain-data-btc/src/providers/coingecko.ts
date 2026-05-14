@@ -15,6 +15,7 @@
  */
 import type { ProviderThrottle } from '../rate-limiter';
 import {
+  ProviderConfigurationError,
   ProviderId,
   ProviderRateLimitError,
   type FiatRatesSnapshot,
@@ -82,12 +83,18 @@ export class CoinGeckoProvider implements Provider {
       };
       if (this.apiKey) headers['x-cg-pro-api-key'] = this.apiKey;
       const response = await fetch(url, { headers });
-      if (response.status === 429 || response.status === 403) {
+      if (response.status === 429) {
         const retryAfterMs = parseRetryAfterMs(response.headers.get('retry-after'));
         if (this.throttle) this.throttle.tripCooldown(retryAfterMs ?? undefined);
         throw new ProviderRateLimitError(
           `CoinGecko returned ${response.status} (rate-limited).`,
           retryAfterMs ?? 0,
+        );
+      }
+      if (response.status === 403) {
+        throw new ProviderConfigurationError(
+          'CoinGecko returned 403 (configuration or permission denied).',
+          403,
         );
       }
       return response;

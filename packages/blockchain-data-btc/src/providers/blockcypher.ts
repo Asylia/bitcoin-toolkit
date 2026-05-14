@@ -33,7 +33,7 @@ import type {
   NormalizedUtxo,
   ProviderRole,
 } from '../types';
-import { ProviderRateLimitError } from '../types';
+import { ProviderConfigurationError, ProviderRateLimitError } from '../types';
 import {
   type BlockcypherAddressFullResponse,
   type BlockcypherAddressResponse,
@@ -112,12 +112,18 @@ export class BlockcypherProvider implements Provider {
       const finalUrl = this.withToken(url);
       debugLog(this.devMode, `[BLOCKCYPHER] ${init?.method ?? 'GET'} ${finalUrl}`);
       const response = await fetch(finalUrl, init);
-      if (response.status === 429 || response.status === 403) {
+      if (response.status === 429) {
         const retryAfterMs = parseRetryAfterMs(response.headers.get('retry-after'));
         if (this.throttle) this.throttle.tripCooldown(retryAfterMs ?? undefined);
         throw new ProviderRateLimitError(
           `Blockcypher returned ${response.status} (rate-limited).`,
           retryAfterMs ?? 0,
+        );
+      }
+      if (response.status === 403) {
+        throw new ProviderConfigurationError(
+          'Blockcypher returned 403 (configuration or permission denied).',
+          403,
         );
       }
       if (!response.ok) {

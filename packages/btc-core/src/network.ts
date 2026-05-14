@@ -10,7 +10,7 @@
  */
 import { networks } from 'bitcoinjs-lib';
 
-import type { BitcoinNetwork } from './types';
+import type { BitcoinNetwork } from './types.ts';
 
 /** Resolve an Asylia network tag onto the corresponding bitcoinjs-lib value. */
 export function networkOf(network: BitcoinNetwork) {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { ProviderId, ProviderRateLimitError } from '../types';
+import { ProviderConfigurationError, ProviderId, ProviderRateLimitError } from '../types';
 import {
   EdgeFallbackProvider,
   type EdgeFallbackInvokeResult,
@@ -101,6 +101,81 @@ describe('EdgeFallbackProvider', () => {
     await expect(provider.broadcastTransaction('00')).resolves.toBe(VALID_TXID);
   });
 
+  it('defaults to the chain-data roles implemented by btc-chain-fallback', () => {
+    expect(new EdgeFallbackProvider({ invoke: vi.fn() }).roles).toEqual([
+      'read-balance',
+      'read-utxos',
+      'read-txs',
+      'read-tip',
+      'read-raw-tx',
+      'broadcast',
+    ]);
+  });
+
+  it('realigns UTXO and transaction buckets by address', async () => {
+    const provider = new EdgeFallbackProvider({
+      invoke: vi.fn(async (payload: EdgeFallbackOp): Promise<EdgeFallbackInvokeResult> => {
+        if (payload.op === 'utxos') {
+          return {
+            error: null,
+            data: {
+              op: 'utxos',
+              results: [...payload.addresses].reverse().map((address) => ({
+                address,
+                utxos: [
+                  {
+                    txid: VALID_TXID,
+                    vout: 0,
+                    valueSats: address === 'bc1qa' ? 1 : 2,
+                    confirmed: true,
+                    blockHeight: 800_000,
+                  } as never,
+                ],
+              })),
+            },
+          };
+        }
+        if (payload.op === 'txs') {
+          return {
+            error: null,
+            data: {
+              op: 'txs',
+              results: [...payload.addresses].reverse().map((address) => ({
+                address,
+                transactions: [
+                  {
+                    txid: address === 'bc1qa' ? '11'.repeat(32) : '22'.repeat(32),
+                    vin: [],
+                    vout: [],
+                    feeSats: 1,
+                    vbytes: 1,
+                    status: { confirmed: false, blockHeight: null, blockTime: null },
+                  },
+                ],
+              })),
+            },
+          };
+        }
+        return { error: null, data: { op: 'tip', height: 1 } };
+      }),
+    });
+
+    await expect(provider.fetchUtxos(['bc1qa', 'bc1qb'])).resolves.toEqual([
+      {
+        address: 'bc1qa',
+        utxos: [expect.objectContaining({ address: 'bc1qa', valueSats: 1 })],
+      },
+      {
+        address: 'bc1qb',
+        utxos: [expect.objectContaining({ address: 'bc1qb', valueSats: 2 })],
+      },
+    ]);
+    await expect(provider.fetchTransactions(['bc1qa', 'bc1qb'])).resolves.toEqual([
+      { address: 'bc1qa', transactions: [expect.objectContaining({ txid: '11'.repeat(32) })] },
+      { address: 'bc1qb', transactions: [expect.objectContaining({ txid: '22'.repeat(32) })] },
+    ]);
+  });
+
   it('turns edge 429 errors into provider rate-limit errors and trips cooldown', async () => {
     const throttle = {
       acquire: vi.fn(async () => true),
@@ -117,6 +192,25 @@ describe('EdgeFallbackProvider', () => {
 
     await expect(provider.fetchTipHeight()).rejects.toBeInstanceOf(ProviderRateLimitError);
     expect(throttle.tripCooldown).toHaveBeenCalledWith(12_000);
+    expect(throttle.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('turns edge 403 errors into provider configuration errors without cooldown', async () => {
+    const throttle = {
+      acquire: vi.fn(async () => true),
+      release: vi.fn(),
+      tripCooldown: vi.fn(),
+    };
+    const provider = new EdgeFallbackProvider({
+      invoke: vi.fn(async () => ({
+        data: null,
+        error: { message: 'fallback forbidden', status: 403 },
+      })),
+    });
+    provider.bindThrottle(throttle as never);
+
+    await expect(provider.fetchTipHeight()).rejects.toBeInstanceOf(ProviderConfigurationError);
+    expect(throttle.tripCooldown).not.toHaveBeenCalled();
     expect(throttle.release).toHaveBeenCalledTimes(1);
   });
 

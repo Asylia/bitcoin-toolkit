@@ -23,9 +23,10 @@ import type {
  * Field names map straightforwardly onto our canonical shape:
  *
  *   - `balance` — confirmed UTXO sum, in satoshis.
- *   - `unconfirmed_balance` — net mempool delta. Can be **negative**
- *     when an outgoing spend is in flight — we clamp at zero so an
- *     unconfirmed spend never produces a negative pending value.
+ *   - `unconfirmed_balance` — signed net mempool delta. Can be
+ *     **negative** when an outgoing spend is in flight, and that sign
+ *     must be preserved so wallet-level totals subtract spent inputs
+ *     before confirmation.
  *   - `total_received` — lifetime confirmed receipts.
  *   - `n_tx` — lifetime confirmed transaction count for the address.
  */
@@ -104,9 +105,8 @@ export interface BlockcypherAddressFullResponse {
 
 /**
  * Map a Blockcypher balance envelope onto the canonical
- * {@link NormalizedAddressBalance}. `unconfirmed_balance` is clamped
- * at zero — an outgoing spend in the mempool cannot yield a negative
- * pending figure the SPA would have to special-case.
+ * {@link NormalizedAddressBalance}. `unconfirmed_balance` is already
+ * a signed net mempool delta, so it is preserved verbatim.
  */
 export function mapBlockcypherBalance(
   data: BlockcypherBalanceResponse,
@@ -114,7 +114,7 @@ export function mapBlockcypherBalance(
   return {
     address: data.address,
     balance_sats: data.balance,
-    pending_sats: Math.max(0, data.unconfirmed_balance),
+    pending_sats: data.unconfirmed_balance,
     total_received_sats: data.total_received,
     tx_count: data.n_tx,
   };

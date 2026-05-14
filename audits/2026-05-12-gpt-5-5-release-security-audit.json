@@ -1,0 +1,45 @@
+{
+  "auditId": "gpt-5-5-release-security-audit-2026-05-12",
+  "date": "2026-05-12",
+  "title": "Security audit: Wallet access, PSBT policy, signer auth, and release gates",
+  "target": "main",
+  "status": "passed-with-notes",
+  "branch": "release/test",
+  "baseRef": "main",
+  "headRef": "release/test",
+  "commitRange": "main...release/test",
+  "scope": [
+    "Wallet access sessions and signer authentication",
+    "PSBT spending policy validation and proposal transaction lifecycle enforcement",
+    "Ledger and Trezor hardware signer authentication and signing adapters",
+    "Supabase RLS, service-role-only RPCs, and branch database security tests",
+    "CI/release gates, production configuration checks, and audit publication artifacts"
+  ],
+  "modelReviews": [
+    {
+      "provider": "OpenAI",
+      "family": "GPT",
+      "model": "GPT-5.5",
+      "version": "gpt-5.5",
+      "role": "Primary security-first release audit",
+      "status": "completed"
+    }
+  ],
+  "findingsSummary": {
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 1,
+    "info": 4,
+    "blockingFindings": false,
+    "unresolvedCriticalOrHigh": false
+  },
+  "reportPath": "docs/audits/reports/2026-05-12-gpt-5-5-release-security-audit.md",
+  "publicReportPath": "docs/audits/public/2026-05-12-gpt-5-5-release-security-audit.md",
+  "marketingPath": "apps/marketing/content/audits/2026-05-12-gpt-5-5-release-security-audit.md",
+  "publicSummary": "Security audit by GPT-5.5 covering wallet access sessions, signer authentication, PSBT policy validation, Supabase RLS/RPC boundaries, hardware signer adapters, and release gates. Found zero critical/high/medium findings. One low finding related to the expanded service-role Edge Function boundary, mitigated by authentication, session, challenge, vault-access, PSBT-policy, and RPC-grant checks. Four informational findings. No release blocker.",
+  "publication": {
+    "safeForPublic": true,
+    "summary": "This report covers wallet access, signer authentication, PSBT policy, Supabase RLS/RPC boundaries, and release gate details only. It does not disclose secrets, private user data, descriptors, xpub sets, PSBT base64, UTXO arrays, seed material, private keys, OTP mailbox credentials, service-role keys, or operational tokens."
+  }
+}
