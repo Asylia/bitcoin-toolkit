@@ -21,16 +21,20 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Enable Corepack
         run: corepack enable
 
       - name: Setup Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: 24
-          cache: yarn
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - name: Use npm with trusted publishing support
+        run: npm install -g npm@^11.10.0 && npm --version
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -46,7 +50,7 @@ jobs:
           if [ -n "$NPM_TOKEN" ]; then
             printf '//registry.npmjs.org/:_authToken=%s\n' "$NPM_TOKEN" > ~/.npmrc
           else
-            echo "No NPM_TOKEN secret configured; relying on npm Trusted Publishing."
+            echo "No NPM_TOKEN secret configured; relying on npm Trusted Publishing for Asylia/bitcoin-toolkit via release-packages.yml."
           fi
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
