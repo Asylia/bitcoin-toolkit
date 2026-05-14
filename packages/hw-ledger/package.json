@@ -1,6 +1,6 @@
 {
   "name": "@asylia/hw-ledger",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "Auditable Ledger hardware-wallet TypeScript adapter for WebHID/Web Bluetooth environment checks, xpub export, wallet-policy registration, address display, and P2WSH multisig PSBT signing.",
   "license": "MIT",
@@ -57,10 +57,10 @@
     "clean": "rimraf dist .turbo node_modules/.tmp"
   },
   "peerDependencies": {
-    "@asylia/btc-core": "^1.0.0"
+    "@asylia/btc-core": "^1.0.1"
   },
   "devDependencies": {
-    "@asylia/btc-core": "^1.0.0",
+    "@asylia/btc-core": "^1.0.1",
     "@vitest/coverage-v8": "^4.1.6",
     "eslint": "^10.3.0",
     "rimraf": "^6.1.3",
