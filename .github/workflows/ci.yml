@@ -36,3 +36,6 @@ jobs:
 
       - name: Test
         run: yarn test
+
+      - name: Check npm package contents
+        run: yarn pack:check

@@ -1,6 +1,6 @@
 {
   "name": "@asylia/blockchain-data-btc",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "description": "Auditable Bitcoin chain-data TypeScript SDK with normalized balances, UTXOs, transactions, raw tx lookup, broadcast, fiat rates, provider failover, cooldowns, rate limiting, and request deduplication.",
   "license": "MIT",
